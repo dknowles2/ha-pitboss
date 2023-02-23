@@ -1,0 +1,5 @@
+{
+    "name": "Integration blueprint",
+    "render_readme": true,
+    "homeassistant": "2022.2.0"
+}
