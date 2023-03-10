@@ -1,5 +1,5 @@
 {
-    "name": "Integration blueprint",
+    "name": "PitBoss",
     "render_readme": true,
     "homeassistant": "2022.2.0"
 }
