@@ -1,0 +1,12 @@
+{
+  "domain": "pitboss",
+  "name": "PitBoss",
+  "codeowners": [
+    "@ludeeus"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/dknowles2/ha-pitboss",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/dknowles2/ha-pitboss/issues",
+  "version": "0.0.0"
+}
