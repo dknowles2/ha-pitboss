@@ -2,7 +2,7 @@
   "domain": "pitboss",
   "name": "PitBoss",
   "codeowners": [
-    "@ludeeus"
+    "@dknowles2"
   ],
   "config_flow": true,
   "documentation": "https://github.com/dknowles2/ha-pitboss",
