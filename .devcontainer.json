@@ -1,6 +1,6 @@
 {
     "name": "dknowles2/ha-pitboss",
-    "image": "mcr.microsoft.com/vscode/devcontainers/python:0-3.10-bullseye",
+    "dockerFile": "Dockerfile.dev",
     "postCreateCommand": "scripts/setup",
     "forwardPorts": [
         8123
@@ -29,7 +29,16 @@
             }
         }
     },
+    "mounts": [
+        "type=bind,source=/dev/bus/usb,target=/dev/bus/usb",
+        "type=bind,source=/run/dbus,target=/run/dbus"
+    ],
+    "privileged": true,
     "remoteUser": "vscode",
+    "runArgs": [
+        "--group-add",
+        "bluetooth"
+    ],
     "features": {
         "rust": "latest"
     }
