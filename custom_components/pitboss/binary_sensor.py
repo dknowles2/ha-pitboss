@@ -1,4 +1,5 @@
-"""Binary sensor platform for pitboss."""
+"""Binary sensor platform for PitBoss."""
+
 from __future__ import annotations
 
 from homeassistant.components.binary_sensor import (
@@ -6,44 +7,115 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
     BinarySensorEntityDescription,
 )
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
-from .coordinator import BlueprintDataUpdateCoordinator
-from .entity import IntegrationBlueprintEntity
+from .coordinator import PitBossDataUpdateCoordinator
+from .entity import BaseEntity
 
 ENTITY_DESCRIPTIONS = (
     BinarySensorEntityDescription(
-        key="pitboss",
-        name="PitBoss Binary Sensor",
-        device_class=BinarySensorDeviceClass.CONNECTIVITY,
+        key="moduleIsOn",
+        name="Module power",
+        device_class=BinarySensorDeviceClass.POWER,
+    ),
+    BinarySensorEntityDescription(
+        key="err1",
+        name="Error 1",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    BinarySensorEntityDescription(
+        key="err2",
+        name="Error 2",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    BinarySensorEntityDescription(
+        key="err3",
+        name="Error 3",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    BinarySensorEntityDescription(
+        key="highTempErr",
+        name="High temperature error",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    BinarySensorEntityDescription(
+        key="fanErr",
+        name="Fan error",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    BinarySensorEntityDescription(
+        key="hotErr",
+        name="Igniter error",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    BinarySensorEntityDescription(
+        key="motorErr",
+        name="Auger error",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    BinarySensorEntityDescription(
+        key="noPellets",
+        name="No pellets",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    BinarySensorEntityDescription(
+        key="motorState",
+        name="Auger",
+        device_class=BinarySensorDeviceClass.RUNNING,
+        icon="mdi:filter-cog",
+    ),
+    BinarySensorEntityDescription(
+        key="lightState",
+        name="Light",
+        device_class=BinarySensorDeviceClass.LIGHT,
+    ),
+    BinarySensorEntityDescription(
+        key="primeState",
+        name="Prime",
+        device_class=BinarySensorDeviceClass.RUNNING,
     ),
 )
 
 
-async def async_setup_entry(hass, entry, async_add_devices):
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+):
     """Setup binary_sensor platform."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_devices(
-        IntegrationBlueprintBinarySensor(
-            coordinator=coordinator,
-            entity_description=entity_description,
-        )
-        for entity_description in ENTITY_DESCRIPTIONS
-    )
+    coordiantor: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.unique_id]
+    entities = []
+    for entity_description in ENTITY_DESCRIPTIONS:
+        entities.append(BinarySensor(coordiantor, entry.unique_id, entity_description))
+
+    async_add_entities(entities)
 
 
-class IntegrationBlueprintBinarySensor(IntegrationBlueprintEntity, BinarySensorEntity):
-    """pitboss binary_sensor class."""
+class BinarySensor(BaseEntity, BinarySensorEntity):
+    """PitBoss binary_sensor class."""
 
     def __init__(
         self,
-        coordinator: BlueprintDataUpdateCoordinator,
+        coordinator: PitBossDataUpdateCoordinator,
+        entry_unique_id: str,
         entity_description: BinarySensorEntityDescription,
     ) -> None:
-        super().__init__(coordinator)
+        super().__init__(coordinator, entry_unique_id)
         self.entity_description = entity_description
+        self._attr_unique_id = f"{entity_description.key}_{entry_unique_id}"
 
     @property
-    def is_on(self) -> bool:
-        """Return true if the binary_sensor is on."""
-        return self.coordinator.data.get("title", "") == "foo"
+    def is_on(self) -> bool | None:
+        if data := self.coordinator.data:
+            return data.get(self.entity_description.key)
+        return None
