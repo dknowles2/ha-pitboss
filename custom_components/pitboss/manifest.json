@@ -11,7 +11,28 @@
   "bluetooth": [
     {
       "connectable": true,
+      "local_name": "LBL-*"
+    }, {
+      "connectable": true,
+      "local_name": "LFS-*"
+    }, {
+      "connectable": true,
+      "local_name": "PBC-*"
+    }, {
+      "connectable": true,
+      "local_name": "PBG-*"
+    }, {
+      "connectable": true,
       "local_name": "PBL-*"
+    }, {
+      "connectable": true,
+      "local_name": "PBM-*"
+    }, {
+      "connectable": true,
+      "local_name": "PBP-*"
+    }, {
+      "connectable": true,
+      "local_name": "PBV-*"
     }
   ],
   "documentation": "https://github.com/dknowles2/ha-pitboss",
