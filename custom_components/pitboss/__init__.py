@@ -20,6 +20,7 @@ from .coordinator import PitBossDataUpdateCoordinator
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.CLIMATE,
+    Platform.SWITCH,
 ]
 
 

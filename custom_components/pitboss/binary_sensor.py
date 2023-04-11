@@ -18,11 +18,6 @@ from .entity import BaseEntity
 
 ENTITY_DESCRIPTIONS = (
     BinarySensorEntityDescription(
-        key="moduleIsOn",
-        name="Module power",
-        device_class=BinarySensorDeviceClass.POWER,
-    ),
-    BinarySensorEntityDescription(
         key="err1",
         name="Error 1",
         device_class=BinarySensorDeviceClass.PROBLEM,
@@ -80,11 +75,6 @@ ENTITY_DESCRIPTIONS = (
         key="lightState",
         name="Light",
         device_class=BinarySensorDeviceClass.LIGHT,
-    ),
-    BinarySensorEntityDescription(
-        key="primeState",
-        name="Prime",
-        device_class=BinarySensorDeviceClass.RUNNING,
     ),
 )
 
