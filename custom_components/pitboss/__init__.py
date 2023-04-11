@@ -1,24 +1,25 @@
 """
-Custom integration to integrate integration_blueprint with Home Assistant.
+Custom integration to integrate PitBoss grills and smokers with Home Assistant.
 
 For more details about this integration, please refer to
 https://github.com/dknowles2/ha-pitboss
 """
+
 from __future__ import annotations
 
+from homeassistant.components import bluetooth
+from homeassistant.components.bluetooth.match import LOCAL_NAME
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, Platform
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.const import CONF_DEVICE_ID, CONF_MODEL, Platform
+from homeassistant.core import HomeAssistant, callback
 
-from .api import IntegrationBlueprintApiClient
-from .const import DOMAIN
-from .coordinator import BlueprintDataUpdateCoordinator
+from .const import DOMAIN, LOGGER
+from .coordinator import PitBossDataUpdateCoordinator
+
 
 PLATFORMS: list[Platform] = [
-    Platform.SENSOR,
     Platform.BINARY_SENSOR,
-    Platform.SWITCH,
+    Platform.CLIMATE,
 ]
 
 
@@ -26,16 +27,31 @@ PLATFORMS: list[Platform] = [
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up this integration using UI."""
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = coordinator = BlueprintDataUpdateCoordinator(
-        hass=hass,
-        client=IntegrationBlueprintApiClient(
-            username=entry.data[CONF_USERNAME],
-            password=entry.data[CONF_PASSWORD],
-            session=async_get_clientsession(hass),
-        ),
+    device_id = entry.data[CONF_DEVICE_ID]
+    model = entry.data[CONF_MODEL]
+
+    hass.data[DOMAIN][entry.entry_id] = PitBossDataUpdateCoordinator(
+        hass, device_id, model
     )
-    # https://developers.home-assistant.io/docs/integration_fetching_data#coordinated-single-api-poll-for-data-for-all-entities
-    await coordinator.async_config_entry_first_refresh()
+
+    @callback
+    def _detection_callback(
+        service_info: bluetooth.BluetoothServiceInfoBleak,
+        change: bluetooth.BluetoothChange,
+    ):
+        LOGGER.info("BLE callback: %s (%s)", service_info, change)
+        hass.async_add_job(
+            hass.data[DOMAIN][entry.entry_id].reset_device, service_info.device
+        )
+
+    entry.async_on_unload(
+        bluetooth.async_register_callback(
+            hass,
+            _detection_callback,
+            bluetooth.BluetoothCallbackMatcher({LOCAL_NAME: device_id}),
+            bluetooth.BluetoothScanningMode.ACTIVE,
+        )
+    )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))

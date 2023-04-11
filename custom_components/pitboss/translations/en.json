@@ -1,18 +1,18 @@
 {
     "config": {
-        "step": {
-            "user": {
-                "description": "If you need help with the configuration have a look here: https://github.com/dknowles2/ha-pitboss",
-                "data": {
-                    "username": "Username",
-                    "password": "Password"
-                }
-            }
+        "abort": {
+            "already_configured": "Grill is already configured"
         },
         "error": {
-            "auth": "Username/Password is wrong.",
-            "connection": "Unable to connect to the server.",
-            "unknown": "Unknown error occurred."
+            "not_found": "No grills found"
+        },
+        "step": {
+            "user": {
+                "data": {
+                    "model": "Model"
+                },
+                "description": "Please select your grill model"
+            }
         }
     }
 }

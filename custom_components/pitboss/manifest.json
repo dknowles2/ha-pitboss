@@ -1,12 +1,45 @@
 {
   "domain": "pitboss",
   "name": "PitBoss",
+  "bluetooth": [
+    {
+      "connectable": true,
+      "local_name": "LBL-*"
+    }, {
+      "connectable": true,
+      "local_name": "LFS-*"
+    }, {
+      "connectable": true,
+      "local_name": "PBC-*"
+    }, {
+      "connectable": true,
+      "local_name": "PBG-*"
+    }, {
+      "connectable": true,
+      "local_name": "PBL-*"
+    }, {
+      "connectable": true,
+      "local_name": "PBM-*"
+    }, {
+      "connectable": true,
+      "local_name": "PBP-*"
+    }, {
+      "connectable": true,
+      "local_name": "PBV-*"
+    }
+  ],
   "codeowners": [
     "@dknowles2"
   ],
   "config_flow": true,
+  "dependencies": [
+    "bluetooth_adapters"
+  ],
   "documentation": "https://github.com/dknowles2/ha-pitboss",
-  "iot_class": "cloud_polling",
+  "iot_class": "local_push",
   "issue_tracker": "https://github.com/dknowles2/ha-pitboss/issues",
-  "version": "0.0.0"
+  "requirements": [
+    "pytboss==2023.4.2"
+  ],
+  "version": "2023.4.0"
 }
