@@ -93,7 +93,7 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
     """Setup binary_sensor platform."""
-    coordiantor: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.unique_id]
+    coordiantor: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities = []
     for entity_description in ENTITY_DESCRIPTIONS:
         entities.append(BinarySensor(coordiantor, entry.unique_id, entity_description))
