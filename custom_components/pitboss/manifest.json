@@ -1,13 +1,6 @@
 {
   "domain": "pitboss",
   "name": "PitBoss",
-  "codeowners": [
-    "@dknowles2"
-  ],
-  "config_flow": true,
-  "dependencies": [
-    "bluetooth_adapters"
-  ],
   "bluetooth": [
     {
       "connectable": true,
@@ -34,6 +27,13 @@
       "connectable": true,
       "local_name": "PBV-*"
     }
+  ],
+  "codeowners": [
+    "@dknowles2"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "bluetooth_adapters"
   ],
   "documentation": "https://github.com/dknowles2/ha-pitboss",
   "iot_class": "local_push",

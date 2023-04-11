@@ -9,6 +9,10 @@
 
 A Home Assistant custom integration to interact with [PitBoss grills and smokers][pitboss].
 
+> **WARNING: THIS INTEGRATION IS STILL UNDER ACTIVE DEVELOPMENT AND MAY NOT YET WORK PROPERLY.**
+>
+> **USE AT YOUR OWN RISK**
+
 Supported models can be found at https://github.com/dknowles2/pytboss#supported-models.
 
 **This integration will set up the following platforms:**
