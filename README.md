@@ -6,22 +6,28 @@
 
 [![hacs][hacsbadge]][hacs]
 ![Project Maintenance][maintenance-shield]
-[![BuyMeCoffee][buymecoffeebadge]][buymecoffee]
 
-[![Discord][discord-shield]][discord]
-[![Community Forum][forum-shield]][forum]
+A Home Assistant custom integration to interact with [PitBoss grills and smokers][pitboss].
 
-_Integration to integrate with [PitBoss grills and smokers][pitboss]._
+Supported models can be found at https://github.com/dknowles2/pytboss#supported-models.
 
-**This integration will set up the following platforms.**
+**This integration will set up the following platforms:**
 
-Platform | Description
--- | --
-`binary_sensor` | Show something `True` or `False`.
-`sensor` | Show info from blueprint API.
-`switch` | Switch something `True` or `False`.
+| Platform        | Description                                                     |
+| --------------- | --------------------------------------------------------------- |
+| `binary_sensor` | Shows various grill sensors                                     |
+| `climate`       | Controls grill temperature                                      |
+| `switch`        | *(Not implemented yet)* Enables/disables various grill features |
 
 ## Installation
+
+### HACS
+
+If you have HACS, go to the three-dot menu and click `Custom
+repositories`. Paste the link to the Github repository and select "Integration"
+as the category.
+
+### Manual
 
 1. Using the tool of choice open the directory (folder) for your HA configuration (where you find `configuration.yaml`).
 1. If you do not have a `custom_components` directory (folder) there, you need to create it.
@@ -33,7 +39,9 @@ Platform | Description
 
 ## Configuration is done in the UI
 
-<!---->
+Power on your grill and it should be discovered automatically over Bluetooth. Once you
+initiate the setup process, it will ask for your exact grill model so we can properly
+communicate with it. No cloud access necessary!
 
 ## Contributions are welcome!
 
