@@ -42,7 +42,6 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
             name=self.device_id,
             model=self.model,
             manufacturer=NAME,
-
         )
 
     async def reset_device(self, device: BLEDevice) -> None:

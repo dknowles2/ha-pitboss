@@ -1,7 +1,11 @@
 """Switch platform for pitboss."""
 from __future__ import annotations
 
-from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity, SwitchEntityDescription
+from homeassistant.components.switch import (
+    SwitchDeviceClass,
+    SwitchEntity,
+    SwitchEntityDescription,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -27,7 +31,9 @@ async def async_setup_entry(
 class BaseSwitchEntity(BaseEntity, SwitchEntity):
     """Base PitBoss switch entity."""
 
-    def __init__(self, coordinator: PitBossDataUpdateCoordinator, entry_unique_id: str) -> None:
+    def __init__(
+        self, coordinator: PitBossDataUpdateCoordinator, entry_unique_id: str
+    ) -> None:
         super().__init__(coordinator, entry_unique_id)
         self._attr_unique_id = f"{self.entity_description.key}_{self.entry_unique_id}"
 
