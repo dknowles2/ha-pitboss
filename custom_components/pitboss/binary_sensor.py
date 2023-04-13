@@ -71,11 +71,6 @@ ENTITY_DESCRIPTIONS = (
         device_class=BinarySensorDeviceClass.RUNNING,
         icon="mdi:filter-cog",
     ),
-    BinarySensorEntityDescription(
-        key="lightState",
-        name="Light",
-        device_class=BinarySensorDeviceClass.LIGHT,
-    ),
 )
 
 
