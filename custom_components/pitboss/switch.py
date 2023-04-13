@@ -1,55 +1,84 @@
 """Switch platform for pitboss."""
 from __future__ import annotations
 
-from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
-
-from .const import DOMAIN
-from .coordinator import BlueprintDataUpdateCoordinator
-from .entity import IntegrationBlueprintEntity
-
-ENTITY_DESCRIPTIONS = (
-    SwitchEntityDescription(
-        key="pitboss",
-        name="Integration Switch",
-        icon="mdi:format-quote-close",
-    ),
+from homeassistant.components.switch import (
+    SwitchDeviceClass,
+    SwitchEntity,
+    SwitchEntityDescription,
 )
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+from .const import DOMAIN, LOGGER
+from .coordinator import PitBossDataUpdateCoordinator
+from .entity import BaseEntity
 
 
-async def async_setup_entry(hass, entry, async_add_devices):
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_devices: AddEntitiesCallback
+):
     """Setup sensor platform."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_devices(
-        IntegrationBlueprintSwitch(
-            coordinator=coordinator,
-            entity_description=entity_description,
-        )
-        for entity_description in ENTITY_DESCRIPTIONS
+        [
+            PowerSwitch(coordinator, entry.unique_id),
+            PrimerSwitch(coordinator, entry.unique_id),
+        ]
     )
 
 
-class IntegrationBlueprintSwitch(IntegrationBlueprintEntity, SwitchEntity):
-    """pitboss switch class."""
+class BaseSwitchEntity(BaseEntity, SwitchEntity):
+    """Base PitBoss switch entity."""
 
     def __init__(
-        self,
-        coordinator: BlueprintDataUpdateCoordinator,
-        entity_description: SwitchEntityDescription,
+        self, coordinator: PitBossDataUpdateCoordinator, entry_unique_id: str
     ) -> None:
-        super().__init__(coordinator)
-        self.entity_description = entity_description
+        super().__init__(coordinator, entry_unique_id)
+        self._attr_unique_id = f"{self.entity_description.key}_{self.entry_unique_id}"
 
     @property
-    def is_on(self) -> bool:
-        """Return true if the switch is on."""
-        return self.coordinator.data.get("title", "") == "foo"
+    def available(self) -> bool:
+        return bool(self.coordinator.data)
+
+    @property
+    def is_on(self) -> bool | None:
+        if data := self.coordinator.data:
+            return data.get(self.entity_description.key)
+        return None
+
+
+class PowerSwitch(BaseSwitchEntity):
+    """PitBoss power switch."""
+
+    entity_description = SwitchEntityDescription(
+        key="moduleIsOn",
+        name="Module power",
+        device_class=SwitchDeviceClass.SWITCH,
+    )
 
     async def async_turn_on(self, **_: any) -> None:
         """Turn on the switch."""
-        await self.coordinator.api.async_set_title("bar")
-        await self.coordinator.async_request_refresh()
+        LOGGER.warn("For safety reasons, the grill cannot be turned on remotely.")
 
     async def async_turn_off(self, **_: any) -> None:
         """Turn off the switch."""
-        await self.coordinator.api.async_set_title("foo")
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.api.turn_grill_off()
+
+
+class PrimerSwitch(BaseSwitchEntity):
+    """PitBoss primer switch."""
+
+    entity_description = SwitchEntityDescription(
+        key="primeState",
+        name="Prime",
+        device_class=SwitchDeviceClass.SWITCH,
+    )
+
+    async def async_turn_on(self, **_: any) -> None:
+        """Turn on the primer motor."""
+        await self.coordinator.api.turn_primer_motor_on()
+
+    async def async_turn_off(self, **_: any) -> None:
+        """Turn off the primer motor."""
+        await self.coordinator.api.turn_primer_motor_off()

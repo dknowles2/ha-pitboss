@@ -24,11 +24,8 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
     """Setup binary_sensor platform."""
-    coordiantor: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
-    entities = [
-        GrillClimate(coordiantor, entry.unique_id),
-    ]
-    async_add_entities(entities)
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    async_add_entities([GrillClimate(coordinator, entry.unique_id)])
 
 
 class GrillClimate(BaseEntity, ClimateEntity):
