@@ -31,6 +31,16 @@ class BaseSwitchEntity(BaseEntity, SwitchEntity):
         super().__init__(coordinator, entry_unique_id)
         self._attr_unique_id = f"{self.entity_description.key}_{self.entry_unique_id}"
 
+    @property
+    def available(self) -> bool:
+        return bool(self.coordinator.data)
+
+    @property
+    def is_on(self) -> bool | None:
+        if data := self.coordinator.data:
+            return data.get(self.entity_description.key)
+        return None
+
 
 class PowerSwitch(BaseSwitchEntity):
     """PitBoss power switch."""
@@ -40,13 +50,6 @@ class PowerSwitch(BaseSwitchEntity):
         name="Module power",
         device_class=SwitchDeviceClass.SWITCH,
     )
-
-    @property
-    def is_on(self) -> bool:
-        """Returns True if the power is on."""
-        if data := self.coordinator.data:
-            return data.get("moduleIsOn")
-        return None
 
     async def async_turn_on(self, **_: any) -> None:
         """Turn on the switch."""
@@ -65,13 +68,6 @@ class PrimerSwitch(BaseSwitchEntity):
         name="Prime",
         device_class=SwitchDeviceClass.SWITCH,
     )
-
-    @property
-    def is_on(self) -> bool:
-        """Returns True if the primer motor is on."""
-        if data := self.coordinator.data:
-            return data.get("primer")
-        return None
 
     async def async_turn_on(self, **_: any) -> None:
         """Turn on the primer motor."""
