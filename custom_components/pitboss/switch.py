@@ -64,7 +64,7 @@ class PrimerSwitch(BaseSwitchEntity):
     """PitBoss primer switch."""
 
     entity_description = SwitchEntityDescription(
-        key="primer",
+        key="primeState",
         name="Prime",
         device_class=SwitchDeviceClass.SWITCH,
     )
