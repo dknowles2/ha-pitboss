@@ -53,7 +53,7 @@ class GrillClimate(BaseEntity, ClimateEntity):
     @property
     def temperature_unit(self) -> str:
         if data := self.coordinator.data:
-            if not data["isFahrenheit"]:
+            if not data.get("isFahrenheit", False):
                 return TEMP_CELSIUS
         return TEMP_FAHRENHEIT
 
@@ -67,7 +67,8 @@ class GrillClimate(BaseEntity, ClimateEntity):
     @property
     def target_temperature(self) -> float | None:
         if data := self.coordinator.data:
-            return float(data["grillSetTemp"])
+            if "grillSetTemp" in data:
+                return float(data["grillSetTemp"])
         return None
 
     async def async_set_temperature(self, **kwargs) -> None:
@@ -78,9 +79,9 @@ class GrillClimate(BaseEntity, ClimateEntity):
     @property
     def hvac_action(self) -> HVACAction | str | None:
         if data := self.coordinator.data:
-            if data["hotState"]:
+            if data.get("hotState", False):
                 return HVACAction.HEATING
-            if data["fanState"]:
+            if data.get("fanState", False):
                 return HVACAction.FAN
             return HVACAction.IDLE
         return None
