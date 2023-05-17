@@ -1,0 +1,19 @@
+name-template: $RESOLVED_VERSION
+tag-template: $RESOLVED_VERSION
+categories:
+  - title: '⚠️ Breaking changes'
+    labels:
+      - breaking
+  - title: '🚀 New features'
+    labels:
+      - enhancement
+  - title: '🐞 Bug fixes'
+    labels:
+      - bug
+  - title: '📋 Other changes'
+  - title: '🧩 Dependency updates'
+    labels:
+      - dependencies  
+template: |
+  ## What's Changed
+  $CHANGES
