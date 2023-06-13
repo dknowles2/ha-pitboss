@@ -20,3 +20,8 @@ class BaseEntity(CoordinatorEntity[PitBossDataUpdateCoordinator]):
         super().__init__(coordinator)
         self.entry_unique_id = entry_unique_id
         self._attr_device_info = coordinator.device_info
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return super().available and self.coordinator.api.is_connected()
