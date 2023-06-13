@@ -38,6 +38,9 @@
   "documentation": "https://github.com/dknowles2/ha-pitboss",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/dknowles2/ha-pitboss/issues",
+  "loggers": [
+    "pytboss"
+  ],
   "requirements": [
     "pytboss==2023.6.0"
   ],
