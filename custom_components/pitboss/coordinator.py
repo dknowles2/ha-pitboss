@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from asyncio import Lock
 
+from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
+from bleak import BleakClient
 from bleak.backends.device import BLEDevice
 from pytboss import BleConnection, PitBoss
 from pytboss.api import StateDict
@@ -48,11 +50,21 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         LOGGER.info("Resetting device: %s", device)
         async with self._lock:
             if self.api is None:
-                LOGGER.info("Setting up PitBoss API")
-                self.conn = BleConnection(device, loop=self.hass.loop)
+                LOGGER.info("Setting up PitBoss API with device: %s", device)
+                self.conn = BleConnection(
+                    device, disconnect_callback=self._on_disconnect, loop=self.hass.loop
+                )
                 self.api = PitBoss(self.conn, self.model)
                 await self.api.start()
                 await self.api.subscribe_state(self.async_set_updated_data)
             else:
-                LOGGER.info("Resetting exisitng device")
+                LOGGER.info("Resetting device: %s", device)
                 await self.conn.reset_device(device)
+
+    def _on_disconnect(self, client: BleakClient) -> None:
+        if self.hass.is_stopping:
+            return
+        device: BLEDevice = bluetooth.async_ble_device_from_address(
+            self.hass, client.address, connectable=True
+        )
+        self.hass.async_add_job(self.reset_device, device)
