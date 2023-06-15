@@ -33,7 +33,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     device_id = entry.data[CONF_DEVICE_ID]
     model = entry.data[CONF_MODEL]
 
-    hass.data[DOMAIN][entry.entry_id] = PitBossDataUpdateCoordinator(
+    coordinator = hass.data[DOMAIN][entry.entry_id] = PitBossDataUpdateCoordinator(
         hass, device_id, model
     )
 
@@ -42,10 +42,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         service_info: bluetooth.BluetoothServiceInfoBleak,
         change: bluetooth.BluetoothChange,
     ):
-        LOGGER.info("BLE callback: %s (%s)", service_info, change)
-        hass.async_add_job(
-            hass.data[DOMAIN][entry.entry_id].reset_device, service_info.device
-        )
+        LOGGER.debug("Bluetooth device detected: %s (%s)", service_info, change)
+        hass.async_add_job(coordinator.reset_device, service_info.device)
 
     entry.async_on_unload(
         bluetooth.async_register_callback(

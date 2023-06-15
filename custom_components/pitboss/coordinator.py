@@ -47,10 +47,10 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         )
 
     async def reset_device(self, device: BLEDevice) -> None:
-        LOGGER.info("Resetting device: %s", device)
+        LOGGER.debug("Resetting device: %s", device)
         async with self._lock:
             if self.api is None:
-                LOGGER.info("Setting up PitBoss API with device: %s", device)
+                LOGGER.debug("Setting up PitBoss API with device: %s", device)
                 self.conn = BleConnection(
                     device, disconnect_callback=self._on_disconnect, loop=self.hass.loop
                 )
@@ -58,7 +58,7 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
                 await self.api.start()
                 await self.api.subscribe_state(self.async_set_updated_data)
             else:
-                LOGGER.info("Resetting device: %s", device)
+                LOGGER.debug("Resetting device: %s", device)
                 await self.conn.reset_device(device)
 
     def _on_disconnect(self, client: BleakClient) -> None:
