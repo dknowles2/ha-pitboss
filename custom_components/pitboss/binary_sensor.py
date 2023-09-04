@@ -19,19 +19,25 @@ from .entity import BaseEntity
 ENTITY_DESCRIPTIONS = (
     BinarySensorEntityDescription(
         key="err1",
-        name="Error 1",
+        name="Probe 1 error",
         device_class=BinarySensorDeviceClass.PROBLEM,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     BinarySensorEntityDescription(
         key="err2",
-        name="Error 2",
+        name="Probe 2 error",
         device_class=BinarySensorDeviceClass.PROBLEM,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     BinarySensorEntityDescription(
         key="err3",
-        name="Error 3",
+        name="Probe 3 error",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    BinarySensorEntityDescription(
+        key="erL",
+        name="Startup error",
         device_class=BinarySensorDeviceClass.PROBLEM,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
