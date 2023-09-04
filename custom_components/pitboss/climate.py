@@ -44,7 +44,6 @@ class GrillClimate(BaseEntity, ClimateEntity):
         super().__init__(coordinator, entry_unique_id)
         self.entity_description = ClimateEntityDescription(
             key="grill_temperature",
-            name="Grill temperature",
         )
         self._attr_unique_id = f"{self.entity_description.key}_{entry_unique_id}"
         self._attr_min_temp = self.coordinator.grill_spec.min_temp

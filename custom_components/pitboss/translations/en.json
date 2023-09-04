@@ -1,4 +1,5 @@
 {
+    "title": "PitBoss",
     "config": {
         "abort": {
             "already_configured": "Grill is already configured"
@@ -12,6 +13,64 @@
                     "model": "Model"
                 },
                 "description": "Please select your grill model"
+            }
+        }
+    },
+    "entity": {
+        "binary_sensor": {
+            "err1": {
+                "name": "Probe 1 error"
+            },
+            "err2": {
+                "name": "Probe 2 error"
+            },
+            "err3": {
+                "name": "Probe 3 error"
+            },
+            "erL": {
+                "name": "Startup error"
+            },
+            "highTempErr": {
+                "name": "High temperature error"
+            },
+            "fanErr": {
+                "name": "Fan error"
+            },
+            "hotErr": {
+                "name": "Igniter error"
+            },
+            "motorErr": {
+                "name": "Auger error"
+            },
+            "noPellets": {
+                "name": "No pellets"
+            },
+            "motorState": {
+                "name": "Auger"
+            }
+        },
+        "light": {
+            "light": {
+                "name": "[%key:component::light::title%]"
+            }
+        },
+        "sensor": {
+            "probe1": {
+                "name": "Probe 1"
+            },
+            "probe2": {
+                "name": "Probe 2"
+            },
+            "probe3": {
+                "name": "Probe 3"
+            }
+        },
+        "switch": {
+            "moduleIsOn": {
+                "name": "Module power"
+            },
+            "primeState": {
+                "name": "Prime"
             }
         }
     }

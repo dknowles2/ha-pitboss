@@ -23,12 +23,13 @@ async def async_setup_entry(
 class GrillLight(BaseEntity, LightEntity):
     """PitBoss light class."""
 
+    _attr_translation_key = "light"
+
     def __init__(
         self, coordinator: PitBossDataUpdateCoordinator, entity_unique_id: str
     ) -> None:
         super().__init__(coordinator, entity_unique_id)
         self._attr_unique_id = f"light_{entity_unique_id}"
-        self._attr_name = "Light"
 
     @property
     def available(self) -> bool:
