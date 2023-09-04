@@ -53,7 +53,7 @@ class PowerSwitch(BaseSwitchEntity):
 
     entity_description = SwitchEntityDescription(
         key="moduleIsOn",
-        translation_key="moduleIsOn",
+        translation_key="module_is_on",
         device_class=SwitchDeviceClass.SWITCH,
     )
 
@@ -71,7 +71,7 @@ class PrimerSwitch(BaseSwitchEntity):
 
     entity_description = SwitchEntityDescription(
         key="primeState",
-        translation_key="primeState",
+        translation_key="prime_state",
         device_class=SwitchDeviceClass.SWITCH,
     )
 

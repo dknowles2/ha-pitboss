@@ -27,25 +27,25 @@
             "err3": {
                 "name": "Probe 3 error"
             },
-            "erL": {
+            "er_l": {
                 "name": "Startup error"
             },
-            "highTempErr": {
+            "high_temp_err": {
                 "name": "High temperature error"
             },
-            "fanErr": {
+            "fan_err": {
                 "name": "Fan error"
             },
-            "hotErr": {
+            "hot_err": {
                 "name": "Igniter error"
             },
-            "motorErr": {
+            "motor_err": {
                 "name": "Auger error"
             },
-            "noPellets": {
+            "no_pellets": {
                 "name": "No pellets"
             },
-            "motorState": {
+            "motor_state": {
                 "name": "Auger"
             }
         },
@@ -66,10 +66,10 @@
             }
         },
         "switch": {
-            "moduleIsOn": {
+            "module_is_on": {
                 "name": "Module power"
             },
-            "primeState": {
+            "prime_state": {
                 "name": "Prime"
             }
         }
