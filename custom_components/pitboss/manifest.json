@@ -65,7 +65,7 @@
     "pytboss"
   ],
   "requirements": [
-    "pytboss==2023.9.1"
+    "pytboss==2023.11.0"
   ],
-  "version": "2023.9.1"
+  "version": "2023.11.0"
 }
