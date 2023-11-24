@@ -12,7 +12,19 @@
     },
     {
       "connectable": true,
+      "local_name": "PBA-*"
+    },
+    {
+      "connectable": true,
+      "local_name": "PBB-*"
+    },
+    {
+      "connectable": true,
       "local_name": "PBC-*"
+    },
+    {
+      "connectable": true,
+      "local_name": "PBD-*"
     },
     {
       "connectable": true,
@@ -29,6 +41,10 @@
     {
       "connectable": true,
       "local_name": "PBP-*"
+    },
+    {
+      "connectable": true,
+      "local_name": "PBT-*"
     },
     {
       "connectable": true,
