@@ -11,7 +11,7 @@ from homeassistant.components.climate import (
     HVACMode,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import TEMP_CELSIUS, TEMP_FAHRENHEIT
+from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -54,8 +54,8 @@ class GrillClimate(BaseEntity, ClimateEntity):
     def temperature_unit(self) -> str:
         if data := self.coordinator.data:
             if not data.get("isFahrenheit", False):
-                return TEMP_CELSIUS
-        return TEMP_FAHRENHEIT
+                return UnitOfTemperature.CELSIUS
+        return UnitOfTemperature.FAHRENHEIT
 
     @property
     def current_temperature(self) -> float | None:
