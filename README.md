@@ -47,6 +47,9 @@ Power on your grill and it should be discovered automatically over Bluetooth. On
 initiate the setup process, it will ask for your exact grill model so we can properly
 communicate with it. No cloud access necessary!
 
+## Tips to get a better connection
+The antenna that comes with the modules are failry weak considering 90% of it is blocked by the hopper (which is all metal). Most of us will use this outside and far away from the neareat bluetooth proxy/whatever youre using to connect this to HA. To get a better connection, you can buy a mahenetic antenna that has a coax male terminal as well as an IPEX connector with a female coax. There are also antennas that have IPEX connections which removes the need for the adapter. Simply disconnect the current antenna and atach the new one. It's easily accessible from the back of the unit without any need for modifications. This option allows your antenna to be mounted outside the hopper and give you much better range.
+
 ## Contributions are welcome!
 
 If you want to contribute to this please read the [Contribution guidelines](CONTRIBUTING.md)
