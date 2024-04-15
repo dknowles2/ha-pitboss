@@ -43,7 +43,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         change: bluetooth.BluetoothChange,
     ):
         LOGGER.debug("Bluetooth device detected: %s (%s)", service_info, change)
-        hass.async_add_job(coordinator.reset_device, service_info.device)
+        entry.async_create_task(hass, coordinator.reset_device(service_info.device))
 
     entry.async_on_unload(
         bluetooth.async_register_callback(
