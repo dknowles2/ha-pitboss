@@ -67,4 +67,4 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         device: BLEDevice = bluetooth.async_ble_device_from_address(
             self.hass, client.address, connectable=True
         )
-        self.hass.async_add_job(self.reset_device, device)
+        self.config_entry.async_create_task(self.hass, self.reset_device(device))
