@@ -62,6 +62,7 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
                 await self.conn.reset_device(device)
 
     def _on_disconnect(self, client: BleakClient) -> None:
+        self.async_set_updated_data(None)
         if self.hass.is_stopping:
             return
         device: BLEDevice = bluetooth.async_ble_device_from_address(
