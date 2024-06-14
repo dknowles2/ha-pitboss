@@ -12,6 +12,7 @@ class BaseEntity(CoordinatorEntity[PitBossDataUpdateCoordinator]):
 
     _device_id: str
     _attr_has_entity_name = True
+    _attr_name = None
 
     def __init__(
         self, coordinator: PitBossDataUpdateCoordinator, entry_unique_id: str

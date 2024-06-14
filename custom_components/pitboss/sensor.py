@@ -42,7 +42,7 @@ class ProbeSensor(BaseEntity, SensorEntity):
     ) -> None:
         super().__init__(coordinator, entity_unique_id)
         self._attr_unique_id = f"probe{probe_number}_{entity_unique_id}"
-        self._attr_name = f"Probe {probe_number}"
+        self._attr_translation_key = f"probe{probe_number}"
         self._probe_number = probe_number
 
     @property
