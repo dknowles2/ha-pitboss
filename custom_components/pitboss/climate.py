@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from homeassistant.components.climate import (
     ATTR_TEMPERATURE,
+    DEFAULT_MIN_TEMP,
+    DEFAULT_MAX_TEMP,
     ClimateEntityDescription,
     ClimateEntity,
     ClimateEntityFeature,
@@ -14,6 +16,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util.unit_conversion import TemperatureConverter
 
 from .const import DOMAIN
 from .coordinator import PitBossDataUpdateCoordinator
@@ -34,7 +37,6 @@ class GrillClimate(BaseEntity, ClimateEntity):
     _attr_hvac_mode = HVACMode.HEAT
     _attr_hvac_modes = [HVACMode.HEAT]
     _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
-    _attr_target_temperature_step = 5
 
     def __init__(
         self,
@@ -47,8 +49,31 @@ class GrillClimate(BaseEntity, ClimateEntity):
             name="Grill temperature",
         )
         self._attr_unique_id = f"{self.entity_description.key}_{entry_unique_id}"
-        self._attr_min_temp = self.coordinator.grill_spec.min_temp
-        self._attr_max_temp = self.coordinator.grill_spec.max_temp
+
+    @property
+    def _attr_target_temperature_step(self) -> float:
+        if self.temperature_unit == UnitOfTemperature.FAHRENHEIT:
+            return 5.0
+        else:
+            return 1.0
+
+    @property
+    def _attr_min_temp(self) -> float:
+        from_unit = UnitOfTemperature.FAHRENHEIT
+        to_unit = self.temperature_unit
+        if (min_temp := self.coordinator.grill_spec.min_temp) is None:
+            from_unit = UnitOfTemperature.CELSIUS
+            min_temp = DEFAULT_MIN_TEMP
+        return TemperatureConverter.convert(min_temp, from_unit, to_unit)
+
+    @property
+    def _attr_max_temp(self) -> float:
+        from_unit = UnitOfTemperature.FAHRENHEIT
+        to_unit = self.temperature_unit
+        if (max_temp := self.coordinator.grill_spec.max_temp) is None:
+            from_unit = UnitOfTemperature.CELSIUS
+            max_temp = DEFAULT_MAX_TEMP
+        return TemperatureConverter.convert(max_temp, from_unit, to_unit)
 
     @property
     def temperature_unit(self) -> str:
