@@ -51,14 +51,14 @@ class GrillClimate(BaseEntity, ClimateEntity):
         self._attr_unique_id = f"{self.entity_description.key}_{entry_unique_id}"
 
     @property
-    def _attr_target_temperature_step(self) -> float:
+    def target_temperature_step(self) -> float:
         if self.temperature_unit == UnitOfTemperature.FAHRENHEIT:
             return 5.0
         else:
             return 1.0
 
     @property
-    def _attr_min_temp(self) -> float:
+    def min_temp(self) -> float:
         from_unit = UnitOfTemperature.FAHRENHEIT
         to_unit = self.temperature_unit
         if (min_temp := self.coordinator.grill_spec.min_temp) is None:
@@ -67,7 +67,7 @@ class GrillClimate(BaseEntity, ClimateEntity):
         return TemperatureConverter.convert(min_temp, from_unit, to_unit)
 
     @property
-    def _attr_max_temp(self) -> float:
+    def max_temp(self) -> float:
         from_unit = UnitOfTemperature.FAHRENHEIT
         to_unit = self.temperature_unit
         if (max_temp := self.coordinator.grill_spec.max_temp) is None:
