@@ -1,0 +1,18 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "O grelhador já está configurado"
+    },
+    "error": {
+      "not_found": "Nenhum grelhador encontrado"
+    },
+    "step": {
+      "user": {
+        "data": {
+          "model": "Modelo"
+        },
+        "description": "Por favor, selecione o modelo do seu grelhador"
+      }
+    }
+  }
+}
