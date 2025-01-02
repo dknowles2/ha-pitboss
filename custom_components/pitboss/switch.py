@@ -38,10 +38,6 @@ class BaseSwitchEntity(BaseEntity, SwitchEntity):
         self._attr_unique_id = f"{self.entity_description.key}_{self.entry_unique_id}"
 
     @property
-    def available(self) -> bool:
-        return bool(self.coordinator.data)
-
-    @property
     def is_on(self) -> bool | None:
         if data := self.coordinator.data:
             return data.get(self.entity_description.key)
