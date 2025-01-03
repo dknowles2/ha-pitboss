@@ -1,0 +1,42 @@
+---
+name: Release
+
+on:
+  release:
+    types:
+      - published
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: ⤵️ Check out code from GitHub
+        uses: actions/checkout@v4.2.2
+
+      - name: 🔢 Adjust version number
+        shell: bash
+        run: |
+          version="${{ github.event.release.tag_name }}"
+          version="${version,,}"
+          sed -i -e "s/0000.0.0/${version}/"" \
+            "${{ github.workspace }}/custom_components/pitboss/manifest.json"
+
+      - name: 📦 Created zipped release package
+        shell: bash
+        run: |
+          cd "${{ github.workspace }}/custom_components/pitboss"
+          zip pitboss.zip -r ./
+
+      - name: 🔏 Sign release package
+        uses: sigstore/gh-action-sigstore-python@v3.0.0
+        with:
+          inputs: ${{ github.workspace }}/custom_components/pitboss/pitboss.zip
+
+      - name: ⬆️ Upload zip to release
+        uses: softprops/action-gh-release@v2.2.0
+        with:
+          files: ${{ github.workspace }}/custom_components/pitboss/pitboss.zip
