@@ -20,7 +20,7 @@ async def async_setup_entry(
     """Setup light platform."""
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     assert entry.unique_id is not None
-    if coordinator.grill_spec.has_lights:
+    if coordinator.api.spec.has_lights:
         async_add_devices([GrillLight(coordinator, entry.unique_id)])
 
 

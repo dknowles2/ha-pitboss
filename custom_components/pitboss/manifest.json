@@ -3,51 +3,51 @@
   "name": "PitBoss",
   "bluetooth": [
     {
-      "connectable": true,
+      "connectable": false,
       "local_name": "LBL-*"
     },
     {
-      "connectable": true,
+      "connectable": false,
       "local_name": "LFS-*"
     },
     {
-      "connectable": true,
+      "connectable": false,
       "local_name": "PBA-*"
     },
     {
-      "connectable": true,
+      "connectable": false,
       "local_name": "PBB-*"
     },
     {
-      "connectable": true,
+      "connectable": false,
       "local_name": "PBC-*"
     },
     {
-      "connectable": true,
+      "connectable": false,
       "local_name": "PBD-*"
     },
     {
-      "connectable": true,
+      "connectable": false,
       "local_name": "PBG-*"
     },
     {
-      "connectable": true,
+      "connectable": false,
       "local_name": "PBL-*"
     },
     {
-      "connectable": true,
+      "connectable": false,
       "local_name": "PBM-*"
     },
     {
-      "connectable": true,
+      "connectable": false,
       "local_name": "PBP-*"
     },
     {
-      "connectable": true,
+      "connectable": false,
       "local_name": "PBT-*"
     },
     {
-      "connectable": true,
+      "connectable": false,
       "local_name": "PBV-*"
     }
   ],
@@ -65,7 +65,7 @@
     "pytboss"
   ],
   "requirements": [
-    "pytboss==2024.10.1"
+    "pytboss==2025.1.0"
   ],
   "version": "0000.0.0"
 }

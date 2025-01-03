@@ -21,7 +21,7 @@ async def async_setup_entry(
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     assert entry.unique_id is not None
     entities = []
-    for i in range(1, coordinator.grill_spec.meat_probes + 1):
+    for i in range(1, coordinator.api.spec.meat_probes + 1):
         entities.append(ProbeSensor(coordinator, entry.unique_id, i))
     async_add_devices(entities)
 
@@ -59,5 +59,5 @@ class ProbeSensor(BaseEntity, SensorEntity):
     def native_value(self) -> int | None:
         """Return the native value of the sensor."""
         if data := self.coordinator.data:
-            return data[f"p{self._probe_number}Temp"]
+            return data[f"p{self._probe_number}Temp"]  # type: ignore[literal-required]
         return None

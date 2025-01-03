@@ -109,5 +109,5 @@ class BinarySensor(BaseEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool | None:
         if data := self.coordinator.data:
-            return data.get(self.entity_description.key)
+            return data.get(self.entity_description.key)  # type: ignore[return-value]
         return None

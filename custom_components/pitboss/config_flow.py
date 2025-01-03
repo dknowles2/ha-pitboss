@@ -1,17 +1,16 @@
-"""Adds config flow for Blueprint."""
+"""Adds config flow for PitBoss."""
 
 from __future__ import annotations
 
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
+from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_DEVICE_ID, CONF_MODEL
+from pytboss import grills
 
 from .const import DOMAIN, LOGGER
-
-from pytboss import grills
 
 
 class BlueprintFlowHandler(ConfigFlow, domain=DOMAIN):
@@ -25,7 +24,6 @@ class BlueprintFlowHandler(ConfigFlow, domain=DOMAIN):
         self, discovery_info: BluetoothServiceInfoBleak
     ) -> ConfigFlowResult:
         """Handle the Bluetooth discovery step."""
-        # TODO: Consider checking for the GATT services.
         LOGGER.info(
             "Found PitBoss smoker: %s @ %s", discovery_info.name, discovery_info.address
         )
@@ -38,26 +36,38 @@ class BlueprintFlowHandler(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Prompts the user to select their grill model."""
-        errors = {}
-
         if user_input is not None:
+            self._discovered_name = user_input[CONF_DEVICE_ID]
+
+        if not self._discovered_name:
+            return self.async_show_form(
+                step_id="user",
+                data_schema=vol.Schema({vol.Required(CONF_DEVICE_ID): str}),
+            )
+
+        return await self.async_step_select_model()
+
+    async def async_step_select_model(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if user_input is not None and CONF_MODEL in user_input:
             return self.async_create_entry(
                 title=self._discovered_name,
                 data={
-                    **user_input,
                     CONF_DEVICE_ID: self._discovered_name,
+                    CONF_MODEL: user_input[CONF_MODEL],
                 },
             )
 
-        # TODO: Allow the user to input the Grill device id
-        if not self._discovered_name:
-            errors["base"] = "not_found"
-
-        control_board = (self._discovered_name or "").split("-")[0]
+        control_board = self._discovered_name.split("-")[0]
         models = [g.name for g in grills.get_grills(control_board=control_board)]
+        if not models:
+            return self.async_abort(
+                reason="unknown_grill",
+                description_placeholders={"control_board": control_board},
+            )
         return self.async_show_form(
-            step_id="user",
+            step_id="select_model",
             data_schema=vol.Schema({vol.Required(CONF_MODEL): vol.In(models)}),
             description_placeholders={"name": self._discovered_name},
-            errors=errors,
         )
