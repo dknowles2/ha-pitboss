@@ -4,17 +4,16 @@ from __future__ import annotations
 
 from asyncio import Lock
 
+from bleak import BleakClient
+from bleak.backends.device import BLEDevice
 from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-
-from bleak import BleakClient
-from bleak.backends.device import BLEDevice
-from pytboss import BleConnection, PitBoss
-from pytboss.api import StateDict
-from pytboss.grills import get_grill
+from pytboss.api import PitBoss
+from pytboss.ble import BleConnection
+from pytboss.grills import StateDict, get_grill
 
 from .const import DOMAIN, LOGGER, NAME
 
@@ -49,7 +48,7 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
     async def reset_device(self, device: BLEDevice) -> None:
         LOGGER.debug("Resetting device: %s", device)
         async with self._lock:
-            if self.api is None:
+            if self.conn is None or self.api is None:
                 LOGGER.debug("Setting up PitBoss API with device: %s", device)
                 self.conn = BleConnection(
                     device, disconnect_callback=self._on_disconnect, loop=self.hass.loop
@@ -62,10 +61,12 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
                 await self.conn.reset_device(device)
 
     def _on_disconnect(self, client: BleakClient) -> None:
-        self.async_set_updated_data(None)
+        self.async_set_updated_data({})
         if self.hass.is_stopping:
             return
-        device: BLEDevice = bluetooth.async_ble_device_from_address(
+        device = bluetooth.async_ble_device_from_address(
             self.hass, client.address, connectable=True
         )
+        if device is None:
+            return
         self.config_entry.async_create_task(self.hass, self.reset_device(device))

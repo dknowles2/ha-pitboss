@@ -86,6 +86,7 @@ async def async_setup_entry(
     """Setup binary_sensor platform."""
     coordiantor: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities = []
+    assert entry.unique_id is not None
     for entity_description in ENTITY_DESCRIPTIONS:
         entities.append(BinarySensor(coordiantor, entry.unique_id, entity_description))
 

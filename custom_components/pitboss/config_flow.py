@@ -5,26 +5,25 @@ from __future__ import annotations
 from typing import Any
 
 import voluptuous as vol
-from homeassistant import config_entries
+from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 from homeassistant.const import CONF_DEVICE_ID, CONF_MODEL
-from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
 
 from .const import DOMAIN, LOGGER
 
 from pytboss import grills
 
 
-class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
+class BlueprintFlowHandler(ConfigFlow, domain=DOMAIN):
     """Config flow for Blueprint."""
 
     VERSION = 1
 
-    _discovered_name: str | None = None
+    _discovered_name: str = ""
 
     async def async_step_bluetooth(
         self, discovery_info: BluetoothServiceInfoBleak
-    ) -> config_entries.FlowResult:
+    ) -> ConfigFlowResult:
         """Handle the Bluetooth discovery step."""
         # TODO: Consider checking for the GATT services.
         LOGGER.info(
@@ -37,7 +36,7 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.FlowResult:
+    ) -> ConfigFlowResult:
         """Prompts the user to select their grill model."""
         errors = {}
 

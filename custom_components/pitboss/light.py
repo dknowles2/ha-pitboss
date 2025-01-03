@@ -1,8 +1,11 @@
 """Light platform for PitBoss."""
 
 from __future__ import annotations
-from homeassistant.config_entries import ConfigEntry
+
+from typing import Any
+
 from homeassistant.components.light import LightEntity
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -16,6 +19,7 @@ async def async_setup_entry(
 ):
     """Setup light platform."""
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    assert entry.unique_id is not None
     if coordinator.grill_spec.has_lights:
         async_add_devices([GrillLight(coordinator, entry.unique_id)])
 
@@ -41,10 +45,10 @@ class GrillLight(BaseEntity, LightEntity):
             return data.get("lightState")
         return None
 
-    async def async_turn_on(self, **_: any) -> None:
+    async def async_turn_on(self, **_: Any) -> None:
         """Turn on the light."""
         await self.coordinator.api.turn_light_on()
 
-    async def async_turn_off(self, **_: any) -> None:
+    async def async_turn_off(self, **_: Any) -> None:
         """Turn off the light."""
         await self.coordinator.api.turn_light_off()
