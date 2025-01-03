@@ -3,17 +3,18 @@
 from __future__ import annotations
 
 from homeassistant.components.climate import (
-    ATTR_TEMPERATURE,
-    DEFAULT_MIN_TEMP,
     DEFAULT_MAX_TEMP,
-    ClimateEntityDescription,
+    DEFAULT_MIN_TEMP,
     ClimateEntity,
+    ClimateEntityDescription,
+)
+from homeassistant.components.climate.const import (
     ClimateEntityFeature,
     HVACAction,
     HVACMode,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfTemperature
+from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util.unit_conversion import TemperatureConverter
@@ -28,6 +29,7 @@ async def async_setup_entry(
 ):
     """Setup binary_sensor platform."""
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    assert entry.unique_id is not None
     async_add_entities([GrillClimate(coordinator, entry.unique_id)])
 
 

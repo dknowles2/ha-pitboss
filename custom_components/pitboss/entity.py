@@ -26,6 +26,6 @@ class BaseEntity(CoordinatorEntity[PitBossDataUpdateCoordinator]):
         """Return if entity is available."""
         return (
             super().available
-            and self.coordinator.api
+            and bool(self.coordinator.api)
             and self.coordinator.api.is_connected()
         )

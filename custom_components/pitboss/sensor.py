@@ -1,11 +1,9 @@
 """Sensor platform for pitboss."""
+
 from __future__ import annotations
 
-from homeassistant.components.sensor import (
-    SensorDeviceClass,
-    SensorEntity,
-    SensorStateClass,
-)
+from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor.const import SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
@@ -21,6 +19,7 @@ async def async_setup_entry(
 ):
     """Setup sensor platform."""
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    assert entry.unique_id is not None
     entities = []
     for i in range(1, coordinator.grill_spec.meat_probes + 1):
         entities.append(ProbeSensor(coordinator, entry.unique_id, i))
@@ -48,7 +47,7 @@ class ProbeSensor(BaseEntity, SensorEntity):
     @property
     def native_unit_of_measurement(self) -> str | None:
         if data := self.coordinator.data:
-            if not data["isFahrenheit"]:
+            if not data.get("isFahrenheit"):
                 return UnitOfTemperature.CELSIUS
         return UnitOfTemperature.FAHRENHEIT
 

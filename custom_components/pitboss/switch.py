@@ -1,5 +1,8 @@
 """Switch platform for pitboss."""
+
 from __future__ import annotations
+
+from typing import Any
 
 from homeassistant.components.switch import (
     SwitchDeviceClass,
@@ -20,6 +23,7 @@ async def async_setup_entry(
 ):
     """Setup sensor platform."""
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    assert entry.unique_id is not None
     async_add_devices(
         [
             PowerSwitch(coordinator, entry.unique_id),
@@ -57,11 +61,11 @@ class PowerSwitch(BaseSwitchEntity):
         device_class=SwitchDeviceClass.SWITCH,
     )
 
-    async def async_turn_on(self, **_: any) -> None:
+    async def async_turn_on(self, **_: Any) -> None:
         """Turn on the switch."""
         LOGGER.warn("For safety reasons, the grill cannot be turned on remotely.")
 
-    async def async_turn_off(self, **_: any) -> None:
+    async def async_turn_off(self, **_: Any) -> None:
         """Turn off the switch."""
         await self.coordinator.api.turn_grill_off()
 
@@ -75,10 +79,10 @@ class PrimerSwitch(BaseSwitchEntity):
         device_class=SwitchDeviceClass.SWITCH,
     )
 
-    async def async_turn_on(self, **_: any) -> None:
+    async def async_turn_on(self, **_: Any) -> None:
         """Turn on the primer motor."""
         await self.coordinator.api.turn_primer_motor_on()
 
-    async def async_turn_off(self, **_: any) -> None:
+    async def async_turn_off(self, **_: Any) -> None:
         """Turn off the primer motor."""
         await self.coordinator.api.turn_primer_motor_off()
