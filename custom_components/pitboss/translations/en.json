@@ -2,20 +2,40 @@
     "config": {
         "abort": {
             "already_configured": "Grill is already configured",
+            "reconfigure_successful": "Re-configuration was successful",
             "unknown_grill": "Unknown grill type: {control_board}"
         },
         "step": {
+            "bluetooth_confirm": {
+                "description": "Do you want to set up {name}?"
+            },
             "user": {
+                "description": "The Grill ID can be found in the PitBoss app under the 'Edit Grill' section",
                 "data": {
                     "device_id": "Grill ID"
-                },
-                "description": "The Grill ID can be found in the PitBoss app under the 'Edit Grill' section."
+                }
             },
-            "select_model": {
+            "more_info": {
+                "description": "Select your grill model and input your grill's password, if you have one set",
                 "data": {
-                    "model": "Model"
+                    "model": "Model",
+                    "password": "Grill password"
                 },
-                "description": "Please select your grill model"
+                "data_description": {
+                    "model": "The model is needed to properly communicate with your grill",
+                    "password": "The password for your grill, NOT your PitBoss account"
+                }
+            },
+            "reconfigure": {
+                "description": "Select your grill model and input your grill's password, if you have one set",
+                "data": {
+                    "model": "Model",
+                    "password": "Grill password"
+                },
+                "data_description": {
+                    "model": "The model is needed to properly communicate with your grill",
+                    "password": "The password for your grill, NOT your PitBoss account"
+                }
             }
         }
     }
