@@ -36,9 +36,10 @@ jobs:
         with:
           inputs: ${{ github.workspace }}/custom_components/pitboss/pitboss.zip
 
-      - name: ⬆️ Upload zip to release
-        uses: softprops/action-gh-release@v2.2.0
-        with:
-          # Required since the repo was created from a template
-          repository: dknowles2/ha-pitboss
-          files: ${{ github.workspace }}/custom_components/pitboss/pitboss.zip
+      # Temporarily disabled because the "Sign release package" seems to do this for us.
+      # - name: ⬆️ Upload zip to release
+      #   uses: softprops/action-gh-release@v2.2.0
+      #   with:
+      #     # Required since the repo was created from a template
+      #     repository: dknowles2/ha-pitboss
+      #     files: ${{ github.workspace }}/custom_components/pitboss/pitboss.zip
