@@ -22,7 +22,7 @@ jobs:
         run: |
           version="${{ github.event.release.tag_name }}"
           version="${version,,}"
-          sed -i -e "s/0000.0.0/${version}/"" \
+          sed -i -e "s/0000.0.0/${version}/" \
             "${{ github.workspace }}/custom_components/pitboss/manifest.json"
 
       - name: 📦 Created zipped release package
