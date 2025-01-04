@@ -5,15 +5,15 @@ For more details about this integration, please refer to
 https://github.com/dknowles2/ha-pitboss
 """
 
-from __future__ import annotations
-
-from homeassistant.components import bluetooth
-from homeassistant.components.bluetooth.match import LOCAL_NAME
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_DEVICE_ID, CONF_MODEL, Platform
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.device_registry import DeviceInfo
+from pytboss.api import PitBoss
+from pytboss.wss import WebSocketConnection
 
-from .const import DOMAIN, LOGGER
+from .const import DOMAIN, MANUFACTURER
 from .coordinator import PitBossDataUpdateCoordinator
 
 PLATFORMS: list[Platform] = [
@@ -25,41 +25,34 @@ PLATFORMS: list[Platform] = [
 ]
 
 
-# https://developers.home-assistant.io/docs/config_entries_index/#setting-up-an-entry
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up this integration using UI."""
     hass.data.setdefault(DOMAIN, {})
     device_id = entry.data[CONF_DEVICE_ID]
     model = entry.data[CONF_MODEL]
-
-    coordinator = hass.data[DOMAIN][entry.entry_id] = PitBossDataUpdateCoordinator(
-        hass, device_id, model
+    conn = WebSocketConnection(
+        device_id, session=async_get_clientsession(hass), loop=hass.loop
     )
-
-    @callback
-    def _detection_callback(
-        service_info: bluetooth.BluetoothServiceInfoBleak,
-        change: bluetooth.BluetoothChange,
-    ):
-        LOGGER.debug("Bluetooth device detected: %s (%s)", service_info, change)
-        entry.async_create_task(hass, coordinator.reset_device(service_info.device))
-
-    entry.async_on_unload(
-        bluetooth.async_register_callback(
-            hass,
-            _detection_callback,
-            bluetooth.BluetoothCallbackMatcher({LOCAL_NAME: device_id}),
-            bluetooth.BluetoothScanningMode.ACTIVE,
-        )
+    api = PitBoss(conn, model)
+    device_info = DeviceInfo(
+        identifiers={(DOMAIN, device_id)},
+        name=device_id,
+        model=model,
+        manufacturer=MANUFACTURER,
     )
-
+    hass.data[DOMAIN][entry.entry_id] = coordinator = PitBossDataUpdateCoordinator(
+        hass, device_info, api
+    )
+    await coordinator.async_config_entry_first_refresh()
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Handle removal of an entry."""
     if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        hass.data[DOMAIN].pop(entry.entry_id)
+        coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN].pop(
+            entry.entry_id
+        )
+        await coordinator.api.stop()
     return unloaded

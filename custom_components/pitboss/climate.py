@@ -63,7 +63,7 @@ class GrillClimate(BaseEntity, ClimateEntity):
     def min_temp(self) -> float:
         from_unit = UnitOfTemperature.FAHRENHEIT
         to_unit = self.temperature_unit
-        if (min_temp := self.coordinator.grill_spec.min_temp) is None:
+        if (min_temp := self.coordinator.api.spec.min_temp) is None:
             from_unit = UnitOfTemperature.CELSIUS
             min_temp = DEFAULT_MIN_TEMP
         return TemperatureConverter.convert(min_temp, from_unit, to_unit)
@@ -72,7 +72,7 @@ class GrillClimate(BaseEntity, ClimateEntity):
     def max_temp(self) -> float:
         from_unit = UnitOfTemperature.FAHRENHEIT
         to_unit = self.temperature_unit
-        if (max_temp := self.coordinator.grill_spec.max_temp) is None:
+        if (max_temp := self.coordinator.api.spec.max_temp) is None:
             from_unit = UnitOfTemperature.CELSIUS
             max_temp = DEFAULT_MAX_TEMP
         return TemperatureConverter.convert(max_temp, from_unit, to_unit)
@@ -104,7 +104,7 @@ class GrillClimate(BaseEntity, ClimateEntity):
         await self.coordinator.api.set_grill_temperature(temp)
 
     @property
-    def hvac_action(self) -> HVACAction | str | None:
+    def hvac_action(self) -> HVACAction | None:
         if data := self.coordinator.data:
             if data.get("hotState", False):
                 return HVACAction.HEATING

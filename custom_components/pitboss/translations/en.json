@@ -1,13 +1,17 @@
 {
     "config": {
         "abort": {
-            "already_configured": "Grill is already configured"
-        },
-        "error": {
-            "not_found": "No grills found"
+            "already_configured": "Grill is already configured",
+            "unknown_grill": "Unknown grill type: {control_board}"
         },
         "step": {
             "user": {
+                "data": {
+                    "device_id": "Grill ID"
+                },
+                "description": "The Grill ID can be found in the PitBoss app under the 'Edit Grill' section."
+            },
+            "select_model": {
                 "data": {
                     "model": "Model"
                 },

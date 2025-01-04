@@ -1,8 +1,11 @@
 """Constants for pitboss."""
+
+from datetime import timedelta
 from logging import Logger, getLogger
 
 LOGGER: Logger = getLogger(__package__)
 
 NAME = "PitBoss"
 DOMAIN = "pitboss"
-VERSION = "0.0.0"
+MANUFACTURER = NAME
+PING_INTERVAL = timedelta(seconds=30)
