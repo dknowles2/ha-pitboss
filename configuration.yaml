@@ -4,6 +4,3 @@ default_config:
 # https://www.home-assistant.io/integrations/logger/
 logger:
   default: info
-  logs:
-    custom_components.pitboss: debug
-    pytboss: debug
