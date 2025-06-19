@@ -7,17 +7,18 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
-from homeassistant.const import CONF_DEVICE_ID, CONF_MODEL, CONF_PASSWORD
+from homeassistant.const import CONF_DEVICE_ID, CONF_MODEL, CONF_PASSWORD, CONF_PROTOCOL
+from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
 from pytboss import grills
 
-from .const import DOMAIN, LOGGER
+from .const import ALL_PROTOCOLS, DEFAULT_PROTOCOL, DOMAIN, LOGGER
 
 
 class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
     """Config flow for PitBoss."""
 
     VERSION = 1
-    MINOR_VERSION = 2
+    MINOR_VERSION = 3
 
     _device_id: str = ""
 
@@ -71,6 +72,7 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
                     CONF_DEVICE_ID: self._device_id,
                     CONF_MODEL: user_input[CONF_MODEL],
                     CONF_PASSWORD: user_input.get(CONF_PASSWORD, ""),
+                    CONF_PROTOCOL: user_input.get(CONF_PROTOCOL, DEFAULT_PROTOCOL),
                 },
             )
         return self._show_more_info_form("more_info")
@@ -80,6 +82,7 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
         step_id: str,
         model: str | vol.Undefined = vol.UNDEFINED,
         password: str | vol.Undefined = vol.UNDEFINED,
+        protocol: str | vol.Undefined = DEFAULT_PROTOCOL,
     ) -> ConfigFlowResult:
         """Show the more_info form."""
         control_board = self._device_id.split("-")[0]
@@ -95,6 +98,11 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
                 {
                     vol.Required(CONF_MODEL, default=model): vol.In(models),
                     vol.Optional(CONF_PASSWORD, default=password): str,
+                    vol.Required(CONF_PROTOCOL, default=protocol): SelectSelector(
+                        SelectSelectorConfig(
+                            options=list(ALL_PROTOCOLS), translation_key="protocol"
+                        )
+                    ),
                 }
             ),
             description_placeholders={"name": self._device_id},
@@ -113,10 +121,12 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
                 data_updates={
                     CONF_MODEL: user_input[CONF_MODEL],
                     CONF_PASSWORD: user_input.get(CONF_PASSWORD, ""),
+                    CONF_PROTOCOL: user_input[CONF_PROTOCOL],
                 },
             )
 
         self._device_id = reconfigure_entry.data[CONF_DEVICE_ID]
-        default_model = reconfigure_entry.data[CONF_MODEL]
-        default_password = reconfigure_entry.data.get(CONF_PASSWORD, "")
-        return self._show_more_info_form("reconfigure", default_model, default_password)
+        model = reconfigure_entry.data[CONF_MODEL]
+        password = reconfigure_entry.data.get(CONF_PASSWORD, "")
+        protocol = reconfigure_entry.data.get(CONF_PROTOCOL, DEFAULT_PROTOCOL)
+        return self._show_more_info_form("reconfigure", model, password, protocol)

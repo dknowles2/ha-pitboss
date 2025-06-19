@@ -1,4 +1,5 @@
 {
+    "title": "PitBoss",
     "config": {
         "abort": {
             "already_configured": "Grill is already configured",
@@ -19,23 +20,35 @@
                 "description": "Select your grill model and input your grill's password, if you have one set",
                 "data": {
                     "model": "Model",
-                    "password": "Grill password"
+                    "password": "Grill password",
+                    "protocol": "Connection protocol"
                 },
                 "data_description": {
                     "model": "The model is needed to properly communicate with your grill",
-                    "password": "The password for your grill, NOT your PitBoss account"
+                    "password": "The password for your grill, NOT your PitBoss account",
+                    "protocol": "The protocol to use to connect to your grill."
                 }
             },
             "reconfigure": {
                 "description": "Select your grill model and input your grill's password, if you have one set",
                 "data": {
                     "model": "Model",
-                    "password": "Grill password"
+                    "password": "Grill password",
+                    "protocol": "Connection protocol"
                 },
                 "data_description": {
                     "model": "The model is needed to properly communicate with your grill",
-                    "password": "The password for your grill, NOT your PitBoss account"
+                    "password": "The password for your grill, NOT your PitBoss account",
+                    "protocol": "The protocol to use to connect to your grill."
                 }
+            }
+        }
+    },
+    "selector": {
+        "protocol": {
+            "options": {
+                "ble": "Bluetooth (local)",
+                "wss": "WebSocket (cloud)"
             }
         }
     }
