@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 from homeassistant.components.climate import (
-    DEFAULT_MAX_TEMP,
-    DEFAULT_MIN_TEMP,
     ClimateEntity,
     ClimateEntityDescription,
 )
@@ -19,7 +17,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util.unit_conversion import TemperatureConverter
 
-from .const import DOMAIN
+from .const import DEFAULT_MAX_TEMP, DEFAULT_MIN_TEMP, DOMAIN
 from .coordinator import PitBossDataUpdateCoordinator
 from .entity import BaseEntity
 
