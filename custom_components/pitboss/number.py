@@ -23,17 +23,20 @@ class PitBossNumberEntityDescription(NumberEntityDescription):
     set_fn: Callable[[PitBoss], Callable[[int], Awaitable[dict]]]
     device_class: NumberDeviceClass = NumberDeviceClass.TEMPERATURE
     icon: str = "mdi:thermometer"
+    matching_probe_key: Literal["p1Temp", "p2Temp"]
 
 
 PROBE_1_DESCRIPTION = PitBossNumberEntityDescription(
     key="p1Target",
     name="Probe 1 Target",
     set_fn=lambda api: api.set_probe_temperature,
+    matching_probe_key="p1Temp",
 )
 PROBE_2_DESCRIPTION = PitBossNumberEntityDescription(
     key="p2Target",
     name="Probe 2 Target",
     set_fn=lambda api: api.set_probe_2_temperature,
+    matching_probe_key="p2Temp",
 )
 
 
@@ -78,13 +81,18 @@ class TargetProbeTemperature(BaseEntity, NumberEntity):
     def native_step(self) -> float:
         """Return the step size of the number."""
         if self.native_unit_of_measurement == UnitOfTemperature.FAHRENHEIT:
-            return 1.0
+            return 1.0  # 5.0
         else:
             return 1.0
 
     @property
     def available(self) -> bool:
-        return bool(self.coordinator.data) and False
+        if data := self.coordinator.data:
+            return (
+                data.get(self.entity_description.matching_probe_key) is not None
+                and super().available
+            )
+        return super().available
 
     @property
     def native_value(self) -> int | None:
