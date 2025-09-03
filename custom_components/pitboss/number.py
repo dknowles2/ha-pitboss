@@ -78,13 +78,13 @@ class TargetProbeTemperature(BaseEntity, NumberEntity):
     def native_step(self) -> float:
         """Return the step size of the number."""
         if self.native_unit_of_measurement == UnitOfTemperature.FAHRENHEIT:
-            return 5.0
+            return 1.0
         else:
             return 1.0
 
     @property
     def available(self) -> bool:
-        return bool(self.coordinator.data)
+        return bool(self.coordinator.data) and False
 
     @property
     def native_value(self) -> int | None:
