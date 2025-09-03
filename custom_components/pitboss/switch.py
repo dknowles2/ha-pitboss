@@ -72,8 +72,8 @@ class PowerSwitch(BaseSwitchEntity):
     def available(self) -> bool:
         """Return if the switch is available."""
         if data := self.coordinator.data:
-            return bool(data.get("moduleIsOn", True))
-        return False
+            return bool(data.get("moduleIsOn", True)) and super().available
+        return super().available
 
 
 class PrimerSwitch(BaseSwitchEntity):
