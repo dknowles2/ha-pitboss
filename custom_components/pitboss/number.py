@@ -90,6 +90,7 @@ class TargetProbeTemperature(BaseEntity, NumberEntity):
         if data := self.coordinator.data:
             return (
                 data.get(self.entity_description.matching_probe_key) is not None
+                and bool(data.get("moduleIsOn", True))
                 and super().available
             )
         return super().available
