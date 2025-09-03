@@ -44,8 +44,15 @@ class BaseSwitchEntity(BaseEntity, SwitchEntity):
     @property
     def is_on(self) -> bool | None:
         if data := self.coordinator.data:
-            return bool(data.get(self.entity_description.key))
+            return bool(data.get(self.entity_description.key, False))
         return None
+
+    @property
+    def available(self) -> bool:
+        """Return if the switch is available."""
+        if data := self.coordinator.data:
+            return bool(data.get("moduleIsOn", True)) and super().available
+        return super().available
 
 
 class PowerSwitch(BaseSwitchEntity):
@@ -67,13 +74,6 @@ class PowerSwitch(BaseSwitchEntity):
         await self.coordinator.api.set_grill_temperature(
             temp=self.coordinator.api.spec.min_temp or DEFAULT_MIN_TEMP
         )
-
-    @property
-    def available(self) -> bool:
-        """Return if the switch is available."""
-        if data := self.coordinator.data:
-            return bool(data.get("moduleIsOn", True)) and super().available
-        return super().available
 
 
 class PrimerSwitch(BaseSwitchEntity):
