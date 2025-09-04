@@ -24,6 +24,7 @@ class PitBossNumberEntityDescription(NumberEntityDescription):
     device_class: NumberDeviceClass = NumberDeviceClass.TEMPERATURE
     icon: str = "mdi:thermometer"
     matching_probe_key: Literal["p1Temp", "p2Temp"]
+    matching_probe_no: int
 
 
 PROBE_1_DESCRIPTION = PitBossNumberEntityDescription(
@@ -31,12 +32,14 @@ PROBE_1_DESCRIPTION = PitBossNumberEntityDescription(
     name="Probe 1 Target",
     set_fn=lambda api: api.set_probe_temperature,
     matching_probe_key="p1Temp",
+    matching_probe_no=1,
 )
 PROBE_2_DESCRIPTION = PitBossNumberEntityDescription(
     key="p2Target",
     name="Probe 2 Target",
     set_fn=lambda api: api.set_probe_2_temperature,
     matching_probe_key="p2Temp",
+    matching_probe_no=2,
 )
 
 
@@ -46,14 +49,19 @@ async def async_setup_entry(
     """Setup number platformm."""
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     assert entry.unique_id is not None
-    entities = [
-        TargetProbeTemperature(coordinator, entry.unique_id, PROBE_1_DESCRIPTION)
-    ]
-    if "set-probe-2-temperature" in coordinator.api.spec.control_board.commands:
+    entities: list[TargetProbeTemperature] = []
+    if "set-probe-1-temperature" in (
+        api := coordinator.api.spec.control_board.commands
+    ):
+        entities.append(
+            TargetProbeTemperature(coordinator, entry.unique_id, PROBE_1_DESCRIPTION)
+        )
+    if "set-probe-2-temperature" in api:
         entities.append(
             TargetProbeTemperature(coordinator, entry.unique_id, PROBE_2_DESCRIPTION)
         )
-    async_add_devices(entities)
+    if entities:
+        async_add_devices(entities)
 
 
 class TargetProbeTemperature(BaseEntity, NumberEntity):
@@ -92,7 +100,7 @@ class TargetProbeTemperature(BaseEntity, NumberEntity):
                 data.get(self.entity_description.matching_probe_key) is not None
                 and super().available
             )
-        return super().available
+        return super().available and bool(data)
 
     @property
     def native_value(self) -> int | None:
