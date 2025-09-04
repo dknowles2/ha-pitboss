@@ -12,7 +12,13 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util.unit_conversion import TemperatureConverter
 from pytboss.api import PitBoss
 
-from .const import DEFAULT_PROBE_MIN_TEMP, DEFAULT_PROBE_MAX_TEMP, DOMAIN
+from .const import (
+    DEFAULT_PROBE_CELSIUS_STEP,
+    DEFAULT_PROBE_FAHRENHEIT_STEP,
+    DEFAULT_PROBE_MIN_TEMP,
+    DEFAULT_PROBE_MAX_TEMP,
+    DOMAIN,
+)
 from .coordinator import PitBossDataUpdateCoordinator
 from .entity import BaseEntity
 
@@ -89,29 +95,18 @@ class TargetProbeTemperature(BaseEntity, NumberEntity):
     def native_step(self) -> float:
         """Return the step size of the number."""
         if self.native_unit_of_measurement == UnitOfTemperature.FAHRENHEIT:
-            return 1.0  # 5.0
+            return DEFAULT_PROBE_FAHRENHEIT_STEP
         else:
-            return 1.0
+            return DEFAULT_PROBE_CELSIUS_STEP
 
     @property
     def available(self) -> bool:
         if data := self.coordinator.data:
             return (
-                data.get(self.entity_description.matching_probe_key) is not None
+                bool(data.get(self.entity_description.matching_probe_key))
                 and super().available
             )
         return super().available and bool(data)
-
-    @property
-    def native_value(self) -> int | None:
-        """Return the native value of the probe target."""
-        if data := self.coordinator.data:
-            return data.get(self.entity_description.key)
-        return None
-
-    async def async_set_native_value(self, value: float) -> None:
-        """Set new value."""
-        await self.entity_description.set_fn(self.coordinator.api)(int(value))
 
     @property
     def native_min_value(self) -> float:
@@ -128,3 +123,14 @@ class TargetProbeTemperature(BaseEntity, NumberEntity):
         return TemperatureConverter.convert(
             max_temp, UnitOfTemperature.FAHRENHEIT, self.native_unit_of_measurement
         )
+
+    @property
+    def native_value(self) -> int | None:
+        """Return the native value of the probe target."""
+        if data := self.coordinator.data:
+            return data.get(self.entity_description.key)
+        return None
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Set new value."""
+        await self.entity_description.set_fn(self.coordinator.api)(int(value))

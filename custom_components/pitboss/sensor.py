@@ -151,4 +151,4 @@ class RecipeSensor(BaseSensorEntity):
     def available(self) -> bool:
         if data := self.coordinator.data:
             return data.get("moduleIsOn", True) and super().available
-        return super().available
+        return super().available and bool(data)
