@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-
+from typing import Literal
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.components.sensor.const import SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
@@ -20,6 +20,7 @@ from .entity import BaseEntity
 class ProbeSensorEntityDescription(SensorEntityDescription):
     """Describes a PitBoss probe sensor."""
 
+    key: Literal["p1Temp", "p2Temp", "p3Temp", "p4Temp"]
     probe_number: int
     device_class: SensorDeviceClass = SensorDeviceClass.TEMPERATURE
     state_class: SensorStateClass = SensorStateClass.MEASUREMENT
@@ -103,5 +104,5 @@ class ProbeSensor(BaseEntity, SensorEntity):
     def native_value(self) -> int | None:
         """Return the native value of the sensor."""
         if data := self.coordinator.data:
-            return data[self.entity_description.key]  # type: ignore[literal-required]
+            return data.get(self.entity_description.key)
         return None
