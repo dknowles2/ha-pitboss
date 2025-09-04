@@ -17,7 +17,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util.unit_conversion import TemperatureConverter
 
-from .const import DEFAULT_MAX_TEMP, DEFAULT_MIN_TEMP, DOMAIN, LOGGER
+from .const import (
+    DEFAULT_GRILL_CELSIUS_STEP,
+    DEFAULT_GRILL_FAHRENHEIT_STEP,
+    DEFAULT_MAX_TEMP,
+    DEFAULT_MIN_TEMP,
+    DOMAIN,
+    LOGGER,
+)
 from .coordinator import PitBossDataUpdateCoordinator
 from .entity import BaseEntity
 
@@ -54,26 +61,22 @@ class GrillClimate(BaseEntity, ClimateEntity):
     @property
     def target_temperature_step(self) -> float:
         if self.temperature_unit == UnitOfTemperature.FAHRENHEIT:
-            return 5.0
+            return DEFAULT_GRILL_FAHRENHEIT_STEP
         else:
-            return 1.0
+            return DEFAULT_GRILL_CELSIUS_STEP
 
     @property
     def min_temp(self) -> float:
         from_unit = UnitOfTemperature.FAHRENHEIT
         to_unit = self.temperature_unit
-        if (min_temp := self.coordinator.api.spec.min_temp) is None:
-            from_unit = UnitOfTemperature.CELSIUS
-            min_temp = DEFAULT_MIN_TEMP
+        min_temp = self.coordinator.api.spec.min_temp or DEFAULT_MIN_TEMP
         return TemperatureConverter.convert(min_temp, from_unit, to_unit)
 
     @property
     def max_temp(self) -> float:
         from_unit = UnitOfTemperature.FAHRENHEIT
         to_unit = self.temperature_unit
-        if (max_temp := self.coordinator.api.spec.max_temp) is None:
-            from_unit = UnitOfTemperature.CELSIUS
-            max_temp = DEFAULT_MAX_TEMP
+        max_temp = self.coordinator.api.spec.max_temp or DEFAULT_MAX_TEMP
         return TemperatureConverter.convert(max_temp, from_unit, to_unit)
 
     @property
@@ -86,15 +89,39 @@ class GrillClimate(BaseEntity, ClimateEntity):
     @property
     def current_temperature(self) -> float | None:
         if data := self.coordinator.data:
-            if "grillTemp" in data:
-                return float(data["grillTemp"])
+            data.get("grillTemp")
         return None
 
     @property
     def target_temperature(self) -> float | None:
         if data := self.coordinator.data:
-            if "grillSetTemp" in data:
-                return float(data["grillSetTemp"])
+            return data.get("grillSetTemp")
+        return None
+
+    @property
+    def hvac_mode(self) -> HVACMode | None:
+        if data := self.coordinator.data:
+            if data.get("moduleIsOn", False):
+                return HVACMode.HEAT
+            else:
+                return HVACMode.OFF
+        return None
+
+    @property
+    def hvac_action(self) -> HVACAction | None:
+        if data := self.coordinator.data:
+            if data.get("hotState", False):
+                return HVACAction.HEATING
+            elif (not (isOn := data.get("mdouleIsOn", True))) & (
+                fan := data.get("fanState", True)
+            ):
+                return HVACAction.COOLING
+            elif not isOn:
+                return HVACAction.OFF
+            elif fan:
+                return HVACAction.FAN
+            else:
+                return HVACAction.IDLE
         return None
 
     async def async_set_temperature(self, **kwargs) -> None:
@@ -113,27 +140,3 @@ class GrillClimate(BaseEntity, ClimateEntity):
             await self.async_turn_off()
         elif hvac_mode == HVACMode.HEAT:
             LOGGER.warn("For safety reasons, the grill cannot be turned on remotely.")
-
-    @property
-    def hvac_mode(self) -> HVACMode | None:
-        if data := self.coordinator.data:
-            if data.get("moduleIsOn", False):
-                return HVACMode.HEAT
-            else:
-                return HVACMode.OFF
-        return None
-
-    @property
-    def hvac_action(self) -> HVACAction | None:
-        if data := self.coordinator.data:
-            if data.get("hotState", False):
-                return HVACAction.HEATING
-            elif not data.get("moduleIsOn", False) and data.get("fanState", False):
-                return HVACAction.COOLING
-            elif data.get("fanState", False):
-                return HVACAction.FAN
-            elif not data.get("moduleIsOn", False):
-                return HVACAction.OFF
-            else:
-                return HVACAction.IDLE
-        return None
