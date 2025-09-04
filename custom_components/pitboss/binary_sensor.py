@@ -1,7 +1,9 @@
 """Binary sensor platform for PitBoss."""
 
 from __future__ import annotations
+from typing import Literal
 
+from attr import dataclass
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
@@ -16,65 +18,69 @@ from .const import DOMAIN
 from .coordinator import PitBossDataUpdateCoordinator
 from .entity import BaseEntity
 
+
+@dataclass(frozen=True, kw_only=True)
+class PBBinarySensorEntityDescription(BinarySensorEntityDescription):
+    """Describes a PitBoss probe sensor."""
+
+    key: Literal[
+        "err1",
+        "err2",
+        "err3",
+        "erL",
+        "highTempErr",
+        "fanErr",
+        "hotErr",
+        "motorErr",
+        "noPellets",
+        "motorState",
+    ]
+    device_class = BinarySensorDeviceClass.PROBLEM
+    entity_category = EntityCategory.DIAGNOSTIC
+
+
 ENTITY_DESCRIPTIONS = (
-    BinarySensorEntityDescription(
+    PBBinarySensorEntityDescription(
         key="err1",
         name="Probe 1 error",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
     ),
-    BinarySensorEntityDescription(
+    PBBinarySensorEntityDescription(
         key="err2",
         name="Probe 2 error",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
     ),
-    BinarySensorEntityDescription(
+    PBBinarySensorEntityDescription(
         key="err3",
         name="Probe 3 error",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
     ),
-    BinarySensorEntityDescription(
+    PBBinarySensorEntityDescription(
         key="erL",
         name="Startup error",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
     ),
-    BinarySensorEntityDescription(
+    PBBinarySensorEntityDescription(
         key="highTempErr",
         name="High temperature error",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
     ),
-    BinarySensorEntityDescription(
+    PBBinarySensorEntityDescription(
         key="fanErr",
         name="Fan error",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
     ),
-    BinarySensorEntityDescription(
+    PBBinarySensorEntityDescription(
         key="hotErr",
         name="Igniter error",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
     ),
-    BinarySensorEntityDescription(
+    PBBinarySensorEntityDescription(
         key="motorErr",
         name="Auger error",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
     ),
-    BinarySensorEntityDescription(
+    PBBinarySensorEntityDescription(
         key="noPellets",
         name="No pellets",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        entity_category=EntityCategory.DIAGNOSTIC,
     ),
-    BinarySensorEntityDescription(
+    PBBinarySensorEntityDescription(
         key="motorState",
         name="Auger",
         device_class=BinarySensorDeviceClass.RUNNING,
+        entity_category=None,
         icon="mdi:filter-cog",
     ),
 )
@@ -89,18 +95,19 @@ async def async_setup_entry(
     assert entry.unique_id is not None
     for entity_description in ENTITY_DESCRIPTIONS:
         entities.append(BinarySensor(coordiantor, entry.unique_id, entity_description))
-
     async_add_entities(entities)
 
 
 class BinarySensor(BaseEntity, BinarySensorEntity):
     """PitBoss binary_sensor class."""
 
+    entity_description: PBBinarySensorEntityDescription
+
     def __init__(
         self,
         coordinator: PitBossDataUpdateCoordinator,
         entry_unique_id: str,
-        entity_description: BinarySensorEntityDescription,
+        entity_description: PBBinarySensorEntityDescription,
     ) -> None:
         super().__init__(coordinator, entry_unique_id)
         self.entity_description = entity_description
@@ -109,5 +116,5 @@ class BinarySensor(BaseEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool | None:
         if data := self.coordinator.data:
-            return data.get(self.entity_description.key)  # type: ignore[return-value]
+            return data.get(self.entity_description.key)
         return None
