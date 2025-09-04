@@ -74,19 +74,21 @@ RECIPE_ENTITY_DESCRIPTIONS = (
     ),
 )
 
+type PBSensorEntityDescription = (
+    ProbeSensorEntityDescription | RecipeSensorEntityDescription
+)
+
 
 class BaseSensorEntity(BaseEntity, SensorEntity):
     """Base PitBoss sensor entity."""
 
-    entity_description: ProbeSensorEntityDescription | RecipeSensorEntityDescription
+    entity_description: PBSensorEntityDescription
 
     def __init__(
         self,
         coordinator: PitBossDataUpdateCoordinator,
         entry_unique_id: str,
-        entity_description: (
-            ProbeSensorEntityDescription | RecipeSensorEntityDescription
-        ),
+        entity_description: PBSensorEntityDescription,
     ) -> None:
         super().__init__(coordinator, entry_unique_id)
         self.entity_description = entity_description
@@ -114,11 +116,16 @@ async def async_setup_entry(
     """Setup sensor platform."""
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     assert entry.unique_id is not None
-    entities: list[ProbeSensor | RecipeSensor] = []
+    entities: list[BaseSensorEntity] = []
     for entity_description in PROBE_ENTITY_DESCRIPTIONS:
         entities.append(ProbeSensor(coordinator, entry.unique_id, entity_description))
-    for recipe_description in RECIPE_ENTITY_DESCRIPTIONS:
-        entities.append(RecipeSensor(coordinator, entry.unique_id, recipe_description))
+        if entity_description.probe_number == coordinator.api.spec.meat_probes:
+            break
+    if coordinator.api.spec.json.get("has_recipe_functionality", False):
+        for recipe_description in RECIPE_ENTITY_DESCRIPTIONS:
+            entities.append(
+                RecipeSensor(coordinator, entry.unique_id, recipe_description)
+            )
     async_add_entities(entities)
 
 
@@ -126,14 +133,6 @@ class ProbeSensor(BaseSensorEntity):
     """PitBoss probe Sensor class."""
 
     entity_description: ProbeSensorEntityDescription
-
-    @property
-    def entity_registry_enabled_default(self) -> bool:
-        """Return if the entity should be enabled when first added.
-
-        This only applies with first added to the entity registry.
-        """
-        return self.probe_number <= self.coordinator.api.spec.meat_probes
 
     @property
     def native_unit_of_measurement(self) -> str | None:
@@ -153,10 +152,3 @@ class RecipeSensor(BaseSensorEntity):
         if data := self.coordinator.data:
             return data.get("moduleIsOn", True) and super().available
         return super().available
-
-    @property
-    def entity_registry_enabled_default(self) -> bool:
-        """Return if the entity should be enabled when first added.
-        This only applies with first added to the entity registry.
-        """
-        return self.coordinator.api.spec.json.get("has_recipe_functionality", False)
