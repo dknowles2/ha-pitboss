@@ -86,6 +86,8 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Show the more_info form."""
         control_board = self._device_id.split("-")[0]
+        if control_board == "PBL2":
+            control_board = "PBL3"
         models = [g.name for g in grills.get_grills(control_board=control_board)]
         if not models:
             return self.async_abort(
