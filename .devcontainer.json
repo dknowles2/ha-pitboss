@@ -1,0 +1,61 @@
+{
+    "name": "dknowles2/ha-pitboss",
+    "image": "mcr.microsoft.com/devcontainers/python:3.13",
+    "postCreateCommand": "scripts/setup",
+    "forwardPorts": [
+        8123
+    ],
+    "portsAttributes": {
+        "8123": {
+            "label": "Home Assistant",
+            "onAutoForward": "notify"
+        }
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "charliermarsh.ruff",
+                "github.vscode-pull-request-github",
+                "ms-python.mypy-type-checker",
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "ryanluker.vscode-coverage-gutters"
+            ],
+            "settings": {
+                "files.eol": "\n",
+                "editor.tabSize": 4,
+                "editor.formatOnPaste": false,
+                "editor.formatOnSave": true,
+                "editor.formatOnType": true,
+                "files.trimTrailingWhitespace": true,
+                "python.analysis.typeCheckingMode": "basic",
+                "python.analysis.autoImportCompletions": true,
+                "python.defaultInterpreterPath": "/usr/local/bin/python",
+                "[python]": {
+                    "editor.defaultFormatter": "charliermarsh.ruff"
+                }
+            }
+        }
+    },
+    "mounts": [
+        "type=bind,source=/dev/bus/usb,target=/dev/bus/usb",
+        "type=bind,source=/run/dbus,target=/run/dbus"
+    ],
+    "privileged": true,
+    "remoteUser": "vscode",
+    "runArgs": [
+        "--group-add",
+        "bluetooth"
+    ],
+    "features": {
+        "ghcr.io/devcontainers-extra/features/apt-packages:1": {
+            "packages": [
+                "bluez",
+                "ffmpeg",
+                "libturbojpeg0",
+                "libpcap-dev",
+                "libudev-dev"
+            ]
+        }
+    }
+}
