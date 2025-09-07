@@ -12,7 +12,13 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util.unit_conversion import TemperatureConverter
 from pytboss.api import PitBoss
 
-from .const import DEFAULT_PROBE_MIN_TEMP, DEFAULT_PROBE_MAX_TEMP, DOMAIN
+from .const import (
+    DEFAULT_PROBE_CELSIUS_STEP,
+    DEFAULT_PROBE_FAHRENHEIT_STEP,
+    DEFAULT_PROBE_MIN_TEMP,
+    DEFAULT_PROBE_MAX_TEMP,
+    DOMAIN,
+)
 from .coordinator import PitBossDataUpdateCoordinator
 from .entity import BaseEntity
 
@@ -46,14 +52,19 @@ async def async_setup_entry(
     """Setup number platformm."""
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     assert entry.unique_id is not None
-    entities = [
-        TargetProbeTemperature(coordinator, entry.unique_id, PROBE_1_DESCRIPTION)
-    ]
-    if "set-probe-2-temperature" in coordinator.api.spec.control_board.commands:
+    entities: list[TargetProbeTemperature] = []
+    if "set-probe-1-temperature" in (
+        api := coordinator.api.spec.control_board.commands
+    ):
+        entities.append(
+            TargetProbeTemperature(coordinator, entry.unique_id, PROBE_1_DESCRIPTION)
+        )
+    if "set-probe-2-temperature" in api:
         entities.append(
             TargetProbeTemperature(coordinator, entry.unique_id, PROBE_2_DESCRIPTION)
         )
-    async_add_devices(entities)
+    if entities:
+        async_add_devices(entities)
 
 
 class TargetProbeTemperature(BaseEntity, NumberEntity):
@@ -81,9 +92,9 @@ class TargetProbeTemperature(BaseEntity, NumberEntity):
     def native_step(self) -> float:
         """Return the step size of the number."""
         if self.native_unit_of_measurement == UnitOfTemperature.FAHRENHEIT:
-            return 1.0  # 5.0
+            return DEFAULT_PROBE_FAHRENHEIT_STEP
         else:
-            return 1.0
+            return DEFAULT_PROBE_CELSIUS_STEP
 
     @property
     def available(self) -> bool:
@@ -92,7 +103,7 @@ class TargetProbeTemperature(BaseEntity, NumberEntity):
                 data.get(self.entity_description.matching_probe_key) is not None
                 and super().available
             )
-        return super().available
+        return super().available and bool(data)
 
     @property
     def native_value(self) -> int | None:
