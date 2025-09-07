@@ -3,13 +3,23 @@
     "image": "mcr.microsoft.com/devcontainers/python:3.13",
     "postCreateCommand": "scripts/setup",
     "forwardPorts": [
-        8123
+        8123,
+        5678        
     ],
     "portsAttributes": {
         "8123": {
             "label": "Home Assistant",
-            "onAutoForward": "notify"
-        }
+            "onAutoForward": "notify",
+            "protocol": "http",
+            "description": "Access Home Assistant UI",
+            "browserPath": "http://localhost:8123",
+            "openInBrowser": true,
+            "openInNewTab": true
+        },
+        "5678": {
+            "label": "Debug Port",
+            "onAutoForward": "ignore"
+        }   
     },
     "customizations": {
         "vscode": {
