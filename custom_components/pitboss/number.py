@@ -54,12 +54,12 @@ async def async_setup_entry(
     assert entry.unique_id is not None
     entities: list[TargetProbeTemperature] = []
     if "set-probe-1-temperature" in (
-        api := coordinator.api.spec.control_board.commands
+        available_commands := coordinator.api.spec.control_board.commands
     ):
         entities.append(
             TargetProbeTemperature(coordinator, entry.unique_id, PROBE_1_DESCRIPTION)
         )
-    if "set-probe-2-temperature" in api:
+    if "set-probe-2-temperature" in available_commands:
         entities.append(
             TargetProbeTemperature(coordinator, entry.unique_id, PROBE_2_DESCRIPTION)
         )
@@ -103,7 +103,7 @@ class TargetProbeTemperature(BaseEntity, NumberEntity):
                 data.get(self.entity_description.matching_probe_key) is not None
                 and super().available
             )
-        return super().available and bool(data)
+        return super().available
 
     @property
     def native_value(self) -> int | None:
