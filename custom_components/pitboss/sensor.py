@@ -62,7 +62,7 @@ class RecipeSensorEntityDescription(SensorEntityDescription):
 RECIPE_ENTITY_DESCRIPTIONS = (
     RecipeSensorEntityDescription(
         key="recipeTime",
-        name="Recipe Name",
+        name="Recipe Time",
         icon="mdi:clock-outline",
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=UnitOfTime.SECONDS,
@@ -110,15 +110,6 @@ class BaseSensorEntity(BaseEntity, SensorEntity):
     ) -> None:
         super().__init__(coordinator, entry_unique_id)
         self.entity_description = entity_description
-        if isinstance(entity_description, ProbeSensorEntityDescription):
-            self.probe_number: int = entity_description.probe_number
-            self._attr_unique_id = f"probe{self.probe_number}_{entry_unique_id}"
-        else:
-            self._attr_unique_id = f"{entity_description.key}_{entry_unique_id}"
-
-    @property
-    def available(self) -> bool:
-        return bool(self.coordinator.data) and super().available
 
     @property
     def native_value(self) -> int | None:
@@ -132,6 +123,16 @@ class ProbeSensor(BaseSensorEntity):
     """PitBoss probe Sensor class."""
 
     entity_description: ProbeSensorEntityDescription
+
+    def __init__(
+        self,
+        coordinator: PitBossDataUpdateCoordinator,
+        entry_unique_id: str,
+        entity_description: ProbeSensorEntityDescription,
+    ) -> None:
+        super().__init__(coordinator, entry_unique_id, entity_description)
+        self.probe_number = self.entity_description.probe_number
+        self._attr_unique_id = f"probe{self.probe_number}_{entry_unique_id}"
 
     @property
     def entity_registry_enabled_default(self) -> bool:
@@ -156,6 +157,15 @@ class RecipeSensor(BaseSensorEntity):
     """PitBoss recipe Sensor class."""
 
     entity_description: RecipeSensorEntityDescription
+
+    def __init__(
+        self,
+        coordinator: PitBossDataUpdateCoordinator,
+        entry_unique_id: str,
+        entity_description: RecipeSensorEntityDescription,
+    ) -> None:
+        super().__init__(coordinator, entry_unique_id, entity_description)
+        self._attr_unique_id = f"{entity_description.key}_{entry_unique_id}"
 
     @property
     def available(self) -> bool:
