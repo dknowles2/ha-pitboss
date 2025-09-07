@@ -10,6 +10,7 @@ __pycache__
 .coverage
 .vscode
 coverage.xml
+.gitignore
 
 
 # Home Assistant configuration
@@ -26,3 +27,4 @@ tts
 scenes.yaml
 scripts.yaml
 secrets.yaml
+.devcontainer.json
