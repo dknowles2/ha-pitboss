@@ -24,12 +24,10 @@ async def async_setup_entry(
     """Setup sensor platform."""
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     assert entry.unique_id is not None
-    async_add_devices(
-        [
-            PowerSwitch(coordinator, entry.unique_id),
-            PrimerSwitch(coordinator, entry.unique_id),
-        ]
-    )
+    entities: list[BaseSwitchEntity] = [PowerSwitch(coordinator, entry.unique_id)]
+    if "turn-primer-motor-on" in coordinator.api.spec.control_board.commands:
+        entities.append(PrimerSwitch(coordinator, entry.unique_id))
+    async_add_devices(entities)
 
 
 class BaseSwitchEntity(BaseEntity, SwitchEntity):
