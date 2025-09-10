@@ -28,4 +28,5 @@ class BaseEntity(CoordinatorEntity[PitBossDataUpdateCoordinator]):
             super().available
             and bool(self.coordinator.api)
             and self.coordinator.api.is_connected()
+            and bool(self.coordinator.data)
         )
