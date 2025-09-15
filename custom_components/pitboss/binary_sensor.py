@@ -18,7 +18,7 @@ from .coordinator import PitBossDataUpdateCoordinator
 from .entity import BaseEntity
 
 
-class HABinarySensorEntityDescription(BinarySensorEntityDescription):
+class PBBinarySensorEntityDescription(BinarySensorEntityDescription):
     """Describes PitBoss binary sensor entity."""
 
     key: Literal[
@@ -38,52 +38,52 @@ class HABinarySensorEntityDescription(BinarySensorEntityDescription):
 
 
 ENTITY_DESCRIPTIONS = (
-    HABinarySensorEntityDescription(
+    PBBinarySensorEntityDescription(
         key="err1",
         name="Probe 1 error",
         icon="mdi:thermometer-alert",
     ),
-    HABinarySensorEntityDescription(
+    PBBinarySensorEntityDescription(
         key="err2",
         name="Probe 2 error",
         icon="mdi:thermometer-alert",
     ),
-    HABinarySensorEntityDescription(
+    PBBinarySensorEntityDescription(
         key="err3",
         name="Probe 3 error",
         icon="mdi:thermometer-alert",
     ),
-    HABinarySensorEntityDescription(
+    PBBinarySensorEntityDescription(
         key="erL",
         name="Startup error",
         icon="mdi:fire-off",
     ),
-    HABinarySensorEntityDescription(
+    PBBinarySensorEntityDescription(
         key="highTempErr",
         name="High temperature error",
         icon="mdi:thermometer-alert",
     ),
-    HABinarySensorEntityDescription(
+    PBBinarySensorEntityDescription(
         key="fanErr",
         name="Fan error",
         icon="mdi:fan-alert",
     ),
-    HABinarySensorEntityDescription(
+    PBBinarySensorEntityDescription(
         key="hotErr",
         name="Igniter error",
         icon="mdi:fire-alert",
     ),
-    HABinarySensorEntityDescription(
+    PBBinarySensorEntityDescription(
         key="motorErr",
         name="Auger error",
         icon="mdi:cog-stop",
     ),
-    HABinarySensorEntityDescription(
+    PBBinarySensorEntityDescription(
         key="noPellets",
         name="No pellets",
         icon="mdi:fire-off",
     ),
-    HABinarySensorEntityDescription(
+    PBBinarySensorEntityDescription(
         key="motorState",
         name="Auger",
         device_class=BinarySensorDeviceClass.RUNNING,
@@ -108,13 +108,13 @@ async def async_setup_entry(
 class BinarySensor(BaseEntity, BinarySensorEntity):
     """PitBoss binary_sensor class."""
 
-    entity_description: HABinarySensorEntityDescription
+    entity_description: PBBinarySensorEntityDescription
 
     def __init__(
         self,
         coordinator: PitBossDataUpdateCoordinator,
         entry_unique_id: str,
-        entity_description: HABinarySensorEntityDescription,
+        entity_description: PBBinarySensorEntityDescription,
     ) -> None:
         super().__init__(coordinator, entry_unique_id)
         self.entity_description = entity_description
