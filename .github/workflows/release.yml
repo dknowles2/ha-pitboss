@@ -15,7 +15,7 @@ jobs:
       id-token: write
     steps:
       - name: ⤵️ Check out code from GitHub
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@v6.0.0
 
       - name: 🔢 Adjust version number
         shell: bash
@@ -32,7 +32,7 @@ jobs:
           zip pitboss.zip -r ./
 
       - name: 🔏 Sign release package
-        uses: sigstore/gh-action-sigstore-python@v3.0.1
+        uses: sigstore/gh-action-sigstore-python@v3.1.0
         with:
           inputs: ${{ github.workspace }}/custom_components/pitboss/pitboss.zip
 
