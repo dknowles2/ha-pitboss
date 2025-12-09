@@ -32,7 +32,7 @@ jobs:
           zip pitboss.zip -r ./
 
       - name: 🔏 Sign release package
-        uses: sigstore/gh-action-sigstore-python@v3.1.0
+        uses: sigstore/gh-action-sigstore-python@v3.2.0
         with:
           inputs: ${{ github.workspace }}/custom_components/pitboss/pitboss.zip
 
