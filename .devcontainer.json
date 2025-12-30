@@ -1,6 +1,6 @@
 {
     "name": "dknowles2/ha-pitboss",
-    "image": "mcr.microsoft.com/devcontainers/python:3.13",
+    "image": "mcr.microsoft.com/devcontainers/python:3.14",
     "postCreateCommand": "scripts/setup",
     "forwardPorts": [
         8123
@@ -56,6 +56,8 @@
                 "libpcap-dev",
                 "libudev-dev"
             ]
-        }
+        },
+        "ghcr.io/devcontainers/features/github-cli:1": {},
+        "ghcr.io/jsburckhardt/devcontainer-features/uv:1": {}
     }
 }
