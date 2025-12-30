@@ -63,7 +63,6 @@ class GrillClimate(BaseEntity, ClimateEntity):
         from_unit = UnitOfTemperature.FAHRENHEIT
         to_unit = self.temperature_unit
         if (min_temp := self.coordinator.api.spec.min_temp) is None:
-            from_unit = UnitOfTemperature.CELSIUS
             min_temp = DEFAULT_MIN_TEMP
         return TemperatureConverter.convert(min_temp, from_unit, to_unit)
 
@@ -72,7 +71,6 @@ class GrillClimate(BaseEntity, ClimateEntity):
         from_unit = UnitOfTemperature.FAHRENHEIT
         to_unit = self.temperature_unit
         if (max_temp := self.coordinator.api.spec.max_temp) is None:
-            from_unit = UnitOfTemperature.CELSIUS
             max_temp = DEFAULT_MAX_TEMP
         return TemperatureConverter.convert(max_temp, from_unit, to_unit)
 

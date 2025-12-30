@@ -22,10 +22,8 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceInfo
-from pytboss.api import PitBoss
-from pytboss.ble import BleConnection
+from pytboss import api, ble, wss
 from pytboss.transport import Transport
-from pytboss.wss import WebSocketConnection
 
 from .const import (
     DEFAULT_PROTOCOL,
@@ -49,8 +47,8 @@ PLATFORMS: list[Platform] = [
 
 async def _connect_ble(
     hass: HomeAssistant, entry: ConfigEntry, device_id: str
-) -> BleConnection:
-    conn = BleConnection(None, loop=hass.loop)  # type: ignore
+) -> ble.BleConnection:
+    conn = ble.BleConnection(None, loop=hass.loop)  # type: ignore
     ready = Condition()
 
     async def reset_device(ble_device: BLEDevice):
@@ -96,7 +94,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     conn: Transport
 
     if (protocol := entry.data.get(CONF_PROTOCOL, DEFAULT_PROTOCOL)) == PROTOCOL_WSS:
-        conn = WebSocketConnection(
+        conn = wss.WebSocketConnection(
             device_id, session=async_get_clientsession(hass), loop=hass.loop
         )
     elif protocol == PROTOCOL_BLE:
@@ -104,7 +102,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     else:
         raise ValueError(f"Unknown protocol: {protocol}")
 
-    api = PitBoss(conn, model, password=password)
+    pitboss = api.PitBoss(conn, model, password=password)
     device_info = DeviceInfo(
         identifiers={(DOMAIN, device_id)},
         name=device_id,
@@ -112,13 +110,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         manufacturer=MANUFACTURER,
     )
     hass.data[DOMAIN][entry.entry_id] = coordinator = PitBossDataUpdateCoordinator(
-        hass, device_info, api
+        hass, device_info, pitboss
     )
     try:
         await coordinator.async_config_entry_first_refresh()
     except ConfigEntryNotReady as ex:
         await conn.disconnect()
-        await api.stop()
+        await pitboss.stop()
         raise ex
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
