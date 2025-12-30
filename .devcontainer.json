@@ -19,7 +19,8 @@
                 "ms-python.mypy-type-checker",
                 "ms-python.python",
                 "ms-python.vscode-pylance",
-                "ryanluker.vscode-coverage-gutters"
+                "ryanluker.vscode-coverage-gutters",
+                "SanjulaGanepola.github-local-actions"
             ],
             "settings": {
                 "files.eol": "\n",
@@ -57,7 +58,11 @@
                 "libudev-dev"
             ]
         },
+        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+            "moby": false
+        },
         "ghcr.io/devcontainers/features/github-cli:1": {},
+        "ghcr.io/dhoeric/features/act:1": {},
         "ghcr.io/jsburckhardt/devcontainer-features/uv:1": {}
     }
 }

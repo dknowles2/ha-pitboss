@@ -1,0 +1,65 @@
+name: Build and Test
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: '.python-version'
+      - name: Install dependencies
+        run: |
+          python -m pip install uv
+          uv venv
+          . .venv/bin/activate
+          uv pip install -r requirements.txt
+      - name: Test with pytest
+        run: |
+          uv run pytest
+  ruff:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: '.python-version'
+      - name: Install dependencies
+        run: |
+          python -m pip install uv
+          uv venv
+          . .venv/bin/activate
+          uv pip install -r requirements.txt
+      - name: Run ruff
+        run: |
+          uv run ruff check --output-format=github .
+  mypy:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: '.python-version'
+      - name: Install dependencies
+        run: |
+          python -m pip install uv
+          uv venv
+          . .venv/bin/activate
+          uv pip install -r requirements.txt
+      - name: Run mypy
+        run: |
+          uv run mypy .
