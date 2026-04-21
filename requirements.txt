@@ -1,4 +1,4 @@
-aiousbwatcher==1.1.1
+aiousbwatcher==1.1.2
 colorlog==6.10.1
 homeassistant==2026.2.2
 mypy==1.20.1
