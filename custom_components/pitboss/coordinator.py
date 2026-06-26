@@ -61,14 +61,12 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         except NotConnectedError as ex:
             raise UpdateFailed("Grill not connected") from ex
 
-        if self.data is None:
-            # We haven't received a WebSocket push. Try to manually fetch the state.
-            try:
-                return await self.api.get_state()
-            except NotConnectedError as ex:
-                raise UpdateFailed("Grill not connected") from ex
-            except RPCError as ex:
-                raise UpdateFailed(str(ex)) from ex
-
-        # Return the last data received from the WebSocket push.
-        return self.data
+        # Always fetch the current state to ensure sensors stay up-to-date.
+        # Relying solely on push notifications means sensors can go stale after
+        # a reconnect if push notifications stop being delivered.
+        try:
+            return await self.api.get_state()
+        except NotConnectedError as ex:
+            raise UpdateFailed("Grill not connected") from ex
+        except RPCError as ex:
+            raise UpdateFailed(str(ex)) from ex
