@@ -17,6 +17,9 @@ from .const import (
     DEFAULT_PROBE_FAHRENHEIT_STEP,
     DEFAULT_PROBE_MIN_TEMP,
     DEFAULT_PROBE_MAX_TEMP,
+    CONF_TEMPERATURE_UNIT,
+    TEMPERATURE_UNIT_CELSIUS,
+    TEMPERATURE_UNIT_FAHRENHEIT,
     DOMAIN,
 )
 from .coordinator import PitBossDataUpdateCoordinator
@@ -83,6 +86,12 @@ class TargetProbeTemperature(BaseEntity, NumberEntity):
     @property
     def native_unit_of_measurement(self) -> UnitOfTemperature | None:
         """Return the unit of measurement of the entity."""
+        unit_option = self.coordinator.config_entry.options.get(CONF_TEMPERATURE_UNIT)
+        if unit_option == TEMPERATURE_UNIT_FAHRENHEIT:
+            return UnitOfTemperature.FAHRENHEIT
+        if unit_option == TEMPERATURE_UNIT_CELSIUS:
+            return UnitOfTemperature.CELSIUS
+        # Auto-detect from grill setting
         if data := self.coordinator.data:
             if not data.get("isFahrenheit"):
                 return UnitOfTemperature.CELSIUS

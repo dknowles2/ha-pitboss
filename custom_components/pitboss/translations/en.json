@@ -44,11 +44,32 @@
             }
         }
     },
+    "options": {
+        "step": {
+            "init": {
+                "title": "PitBoss Options",
+                "description": "Configure PitBoss integration options",
+                "data": {
+                    "temperature_unit": "Temperature unit"
+                },
+                "data_description": {
+                    "temperature_unit": "Override the temperature unit used by all PitBoss entities. 'Auto' uses the unit reported by the grill (set in the PitBoss app)."
+                }
+            }
+        }
+    },
     "selector": {
         "protocol": {
             "options": {
                 "ble": "Bluetooth (local)",
                 "wss": "WebSocket (cloud)"
+            }
+        },
+        "temperature_unit": {
+            "options": {
+                "auto": "Auto (use grill setting)",
+                "fahrenheit": "Fahrenheit (°F)",
+                "celsius": "Celsius (°C)"
             }
         }
     }

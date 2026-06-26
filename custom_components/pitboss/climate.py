@@ -18,6 +18,11 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util.unit_conversion import TemperatureConverter
 
 from .const import DEFAULT_MAX_TEMP, DEFAULT_MIN_TEMP, DOMAIN, LOGGER
+from .const import (
+    CONF_TEMPERATURE_UNIT,
+    TEMPERATURE_UNIT_CELSIUS,
+    TEMPERATURE_UNIT_FAHRENHEIT,
+)
 from .coordinator import PitBossDataUpdateCoordinator
 from .entity import BaseEntity
 
@@ -76,6 +81,17 @@ class GrillClimate(BaseEntity, ClimateEntity):
 
     @property
     def temperature_unit(self) -> str:
+        """Return the unit of temperature.
+
+        Checks for a user-configured override first (set via the Options flow).
+        Falls back to auto-detecting from the grill's isFahrenheit flag.
+        """
+        unit_option = self.coordinator.config_entry.options.get(CONF_TEMPERATURE_UNIT)
+        if unit_option == TEMPERATURE_UNIT_FAHRENHEIT:
+            return UnitOfTemperature.FAHRENHEIT
+        if unit_option == TEMPERATURE_UNIT_CELSIUS:
+            return UnitOfTemperature.CELSIUS
+        # Auto-detect from grill setting
         if data := self.coordinator.data:
             if not data.get("isFahrenheit", False):
                 return UnitOfTemperature.CELSIUS
