@@ -102,7 +102,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     else:
         raise ValueError(f"Unknown protocol: {protocol}")
 
-    pitboss = api.PitBoss(conn, model, password=password)
+    pitboss = await hass.async_add_executor_job(
+        lambda: api.PitBoss(conn, model, password=password)
+    )
     device_info = DeviceInfo(
         identifiers={(DOMAIN, device_id)},
         name=device_id,
