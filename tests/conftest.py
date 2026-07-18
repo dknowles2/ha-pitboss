@@ -17,6 +17,19 @@ def mock_bluetooth(enable_bluetooth):
 
 
 @pytest.fixture(autouse=True)
+def expected_lingering_timers() -> bool:
+    """Bypass lingering-timer teardown check for the bluetooth scanner.
+
+    Setting up the bluetooth component (homeassistant/components/bluetooth,
+    required transitively since pitboss supports BLE) schedules a recurring
+    BaseHaScanner._async_expire_devices_schedule_next timer via habluetooth
+    6.26.5 that isn't cancelled when enable_bluetooth unloads its mock config
+    entry on homeassistant 2026.7.2. Remove once upstream fixes the teardown.
+    """
+    return True
+
+
+@pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations):
     """Enable loading custom integrations."""
     yield
