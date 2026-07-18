@@ -4,6 +4,11 @@ updates:
     directory: "/"
     schedule:
       interval: daily
+    groups:
+      homeassistant:
+        patterns:
+          - "homeassistant"
+          - "pytest-homeassistant-custom-component"
 
   - package-ecosystem: "github-actions"
     directory: "/"
