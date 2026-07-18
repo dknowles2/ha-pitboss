@@ -6,12 +6,17 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_DEVICE_ID, CONF_MODEL, CONF_PASSWORD, CONF_PROTOCOL
 from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
 from pytboss import grills
 
 from .const import ALL_PROTOCOLS, DEFAULT_PROTOCOL, DOMAIN, LOGGER
+from .const import (
+    ALL_TEMPERATURE_UNITS,
+    CONF_TEMPERATURE_UNIT,
+    TEMPERATURE_UNIT_AUTO,
+)
 
 
 class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
@@ -19,6 +24,11 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
     MINOR_VERSION = 3
+
+    @staticmethod
+    def async_get_options_flow(config_entry: ConfigEntry) -> "PitBossOptionsFlowHandler":
+        """Return the options flow handler."""
+        return PitBossOptionsFlowHandler()
 
     _device_id: str = ""
 
@@ -132,3 +142,33 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
         password = reconfigure_entry.data.get(CONF_PASSWORD, "")
         protocol = reconfigure_entry.data.get(CONF_PROTOCOL, DEFAULT_PROTOCOL)
         return self._show_more_info_form("reconfigure", model, password, protocol)
+
+
+class PitBossOptionsFlowHandler(OptionsFlow):
+    """Options flow for PitBoss."""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Manage PitBoss options."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        current_temp_unit = self.config_entry.options.get(
+            CONF_TEMPERATURE_UNIT, TEMPERATURE_UNIT_AUTO
+        )
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_TEMPERATURE_UNIT, default=current_temp_unit
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=list(ALL_TEMPERATURE_UNITS),
+                            translation_key="temperature_unit",
+                        )
+                    ),
+                }
+            ),
+        )

@@ -12,6 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
+from .const import CONF_TEMPERATURE_UNIT, TEMPERATURE_UNIT_CELSIUS, TEMPERATURE_UNIT_FAHRENHEIT
 from .coordinator import PitBossDataUpdateCoordinator
 from .entity import BaseEntity
 
@@ -147,6 +148,13 @@ class ProbeSensor(BaseSensorEntity):
 
     @property
     def native_unit_of_measurement(self) -> str | None:
+        """Return the unit of measurement, respecting user preferences."""
+        unit_option = self.coordinator.config_entry.options.get(CONF_TEMPERATURE_UNIT)
+        if unit_option == TEMPERATURE_UNIT_FAHRENHEIT:
+            return UnitOfTemperature.FAHRENHEIT
+        if unit_option == TEMPERATURE_UNIT_CELSIUS:
+            return UnitOfTemperature.CELSIUS
+        # Auto-detect from grill setting
         if data := self.coordinator.data:
             if not data.get("isFahrenheit"):
                 return UnitOfTemperature.CELSIUS
