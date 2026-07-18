@@ -1,6 +1,7 @@
 """Binary sensor platform for PitBoss."""
 
 from __future__ import annotations
+from dataclasses import dataclass
 from typing import Literal
 
 from homeassistant.components.binary_sensor import (
@@ -18,6 +19,7 @@ from .coordinator import PitBossDataUpdateCoordinator
 from .entity import BaseEntity
 
 
+@dataclass(frozen=True, kw_only=True)
 class PBBinarySensorEntityDescription(BinarySensorEntityDescription):
     """Describes PitBoss binary sensor entity."""
 
@@ -33,8 +35,8 @@ class PBBinarySensorEntityDescription(BinarySensorEntityDescription):
         "noPellets",
         "motorState",
     ]
-    device_class = BinarySensorDeviceClass.PROBLEM
-    entity_category = EntityCategory.DIAGNOSTIC
+    device_class: BinarySensorDeviceClass | None = BinarySensorDeviceClass.PROBLEM
+    entity_category: EntityCategory | None = EntityCategory.DIAGNOSTIC
 
 
 ENTITY_DESCRIPTIONS = (
