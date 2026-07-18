@@ -13,6 +13,15 @@ from pytboss import grills
 
 from .const import ALL_PROTOCOLS, DEFAULT_PROTOCOL, DOMAIN, LOGGER
 
+# Some BLE-name prefixes don't directly match a pytboss control board. Pit Boss
+# and its sibling Dansons brand Louisiana Grills sometimes advertise under a
+# prefix that differs from the control board name pytboss expects. Map those
+# prefixes to the equivalent control board so discovery can resolve a model.
+CONTROL_BOARD_ALIASES = {
+    "PBL2": "PBL3",
+    "LBL": "PBL",  # Louisiana Black Label series (verified on an LG800BL)
+}
+
 
 class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
     """Config flow for PitBoss."""
@@ -86,8 +95,7 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Show the more_info form."""
         control_board = self._device_id.split("-")[0]
-        if control_board == "PBL2":
-            control_board = "PBL3"
+        control_board = CONTROL_BOARD_ALIASES.get(control_board, control_board)
         models = [g.name for g in grills.get_grills(control_board=control_board)]
         if not models:
             return self.async_abort(
