@@ -17,6 +17,22 @@ body:
       - label: This issue is not a duplicate feature request of [previous feature requests](https://github.com/dknowles2/ha-pitboss/issues?q=is%3Aissue+label%3A%22Feature+Request%22+).
         required: true
 
+- type: input
+  attributes:
+    label: "Grill model"
+    description: "The exact model number/name of your grill (e.g. PBV5PL). This determines what data your grill's control board actually reports, so it's required to evaluate most feature requests."
+    placeholder: "PBV5PL"
+  validations:
+    required: true
+
+- type: input
+  attributes:
+    label: "Integration version"
+    description: "The version of the ha-pitboss integration you're running. Find it via Settings > Devices & Services > PitBoss, or in the System Health card (Settings > System > Repairs > System Health)."
+    placeholder: "2025.12.1"
+  validations:
+    required: true
+
 - type: textarea
   attributes:
     label: "Is your feature request related to a problem? Please describe."
