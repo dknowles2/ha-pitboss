@@ -12,6 +12,20 @@ body:
     description: "Paste the data from the System Health card in Home Assistant (https://www.home-assistant.io//more-info/system-health#github-issues)"
   validations:
     required: true
+- type: input
+  attributes:
+    label: "Grill model"
+    description: "The exact model number/name of your grill (e.g. PBV5PL). This determines what data your grill's control board actually reports."
+    placeholder: "PBV5PL"
+  validations:
+    required: true
+- type: input
+  attributes:
+    label: "Integration version"
+    description: "The version of the ha-pitboss integration you're running. Find it via Settings > Devices & Services > PitBoss, or in HACS."
+    placeholder: "2025.12.1"
+  validations:
+    required: true
 - type: checkboxes
   attributes:
     label: Checklist
