@@ -14,6 +14,10 @@ A Home Assistant custom integration to interact with [PitBoss grills and smokers
 > **USE AT YOUR OWN RISK**
 
 Supported models can be found at https://github.com/dknowles2/pytboss#supported-models.
+See [`docs/SUPPORTED_GRILLS.md`](docs/SUPPORTED_GRILLS.md) for a per-model breakdown of
+which features (lights, meat probes, primer motor, recipe mode) each grill supports in
+this integration. That file is auto-generated and kept in sync whenever the `pytboss`
+dependency is updated.
 
 ## Features
 
