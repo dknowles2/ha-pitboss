@@ -4,8 +4,15 @@ name: Update grill docs
 # version changes (typically via a Dependabot PR bumping requirements.txt),
 # and pushes the regenerated file back onto that same PR branch.
 #
-# Uses pull_request_target (like auto-merge.yml) so the workflow has
-# write permissions even though it may be triggered by Dependabot.
+# SECURITY: this uses pull_request_target so the job gets a token with
+# write access to push back to the PR branch, but that means it must
+# NEVER check out or execute untrusted (non-Dependabot) PR content with
+# that token ("pwn request" pattern). We therefore:
+#   - gate the whole job on the PR actor being dependabot[bot] (same
+#     restriction auto-merge.yml uses for the same reason)
+#   - never interpolate event data directly into a run: shell script
+#     (branch names etc. are passed via env vars instead, since they
+#     could otherwise be used for command injection)
 
 on:
   pull_request_target:
@@ -19,21 +26,21 @@ permissions:
 jobs:
   update-grill-docs:
     runs-on: ubuntu-latest
-    # Only bother running this for PRs that actually bump pytboss;
-    # cheap grep check happens in the "check" step below.
+    if: github.actor == 'dependabot[bot]'
     steps:
       - name: ⤵️ Check out PR head
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
-          # A token with write access to push back to the PR branch.
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 🔍 Check whether pytboss version changed
         id: check
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          if git diff "origin/${{ github.event.pull_request.base.ref }}"...HEAD -- requirements.txt | grep -q '^[+-]pytboss=='; then
+          if git diff "origin/$BASE_REF"...HEAD -- requirements.txt | grep -q '^[+-]pytboss=='; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -60,6 +67,8 @@ jobs:
 
       - name: ⬆️ Commit and push changes
         if: steps.check.outputs.changed == 'true'
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           if git diff --quiet -- docs/SUPPORTED_GRILLS.md; then
             echo "No changes to docs/SUPPORTED_GRILLS.md"
@@ -69,4 +78,4 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/SUPPORTED_GRILLS.md
           git commit -m "docs: regenerate SUPPORTED_GRILLS.md for pytboss version bump"
-          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          git push origin "HEAD:$HEAD_REF"
