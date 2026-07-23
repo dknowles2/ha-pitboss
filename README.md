@@ -15,13 +15,36 @@ A Home Assistant custom integration to interact with [PitBoss grills and smokers
 
 Supported models can be found at https://github.com/dknowles2/pytboss#supported-models.
 
+## Features
+
+- **100% local, no cloud required.** Communicates directly with the grill over Bluetooth (BLE) or your local WiFi (WebSocket), reported to Home Assistant as a `local_push` integration.
+- **Automatic discovery.** Power on your grill and it's discovered automatically over Bluetooth; manual setup by device ID is also supported.
+- **Dual connection protocols.** Choose Bluetooth (`ble`) or WebSocket (`wss`, default) when configuring the integration, and switch between them later via reconfigure.
+- **Reconfigurable.** Change the grill model, password, or connection protocol after initial setup without deleting the integration.
+- **Adapts to your grill's capabilities.** Entities such as the grill light, meat probes, primer motor switch, and recipe sensors are only created if your specific model supports them.
+- **Safety first.** For safety reasons, the integration can never turn the grill on remotely — you can only monitor it and turn it off. This mirrors the physical safety design of the grill itself.
+
 **This integration will set up the following platforms:**
 
-| Platform        | Description                                                     |
-| --------------- | --------------------------------------------------------------- |
-| `binary_sensor` | Shows various grill sensors                                     |
-| `climate`       | Controls grill temperature                                      |
-| `switch`        | *(Not implemented yet)* Enables/disables various grill features |
+| Platform        | Description                                                                                                    |
+| ---------------- | --------------------------------------------------------------------------------------------------------------- |
+| `binary_sensor`  | Diagnostic error sensors (probe/startup/high-temp/fan/igniter/auger/pellet errors) and an auger "running" sensor |
+| `climate`        | Monitors and controls grill temperature; reports heating/cooling/fan/idle status; turn off only (safety)         |
+| `light`          | Controls the grill's built-in light, if the model has one                                                        |
+| `number`         | Sets target temperatures for meat probes 1 and 2, on models that support probe-based shutoff/alerts              |
+| `sensor`         | Meat probe temperatures (up to 4 probes, enabled based on how many the grill has), and recipe time/step for models with guided-recipe functionality |
+| `switch`         | Grill module power (turn off only, for safety) and primer motor control, if supported by the model               |
+
+### Entity details
+
+- **Climate (`Grill temperature`):** Shows current and target grill temperature, and HVAC action (heating/cooling/fan/idle/off). Setting HVAC mode to `off` turns off the grill and resets the target temperature to the model's minimum. The grill cannot be turned on remotely for safety reasons.
+- **Light (`Light`):** On/off control for the grill's light, only created for models that have one.
+- **Sensor (`Probe 1`–`Probe 4`):** Meat probe temperatures in °F or °C, matching the grill's current unit setting. Only as many probes as the grill physically supports are enabled by default.
+- **Sensor (`Recipe Time` / `Recipe Step`):** Progress through a guided recipe, for models with recipe functionality.
+- **Number (`Probe 1 Target` / `Probe 2 Target`):** Set a target temperature for probes 1 and 2, on models that support it.
+- **Switch (`Module power`):** Turns the grill module off (cannot turn it on remotely, for safety).
+- **Switch (`Prime`):** Runs the auger primer motor, on models that support it.
+- **Binary sensor:** Diagnostic error flags (probe errors, startup error, high-temperature error, fan error, igniter error, auger error, no-pellets) plus an `Auger` running-state sensor.
 
 ## Installation
 
@@ -46,6 +69,13 @@ as the category.
 Power on your grill and it should be discovered automatically over Bluetooth. Once you
 initiate the setup process, it will ask for your exact grill model so we can properly
 communicate with it. No cloud access necessary!
+
+If your grill isn't discovered automatically, you can add it manually by entering its
+device ID. You'll then choose your exact model and, optionally, a connection password
+and whether to connect over Bluetooth or WebSocket (WiFi).
+
+Already set up? You can change the model, password, or connection protocol at any time
+via the integration's "Reconfigure" option, without needing to remove and re-add it.
 
 ## Contributions are welcome!
 
