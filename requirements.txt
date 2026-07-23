@@ -6,7 +6,7 @@ mypy==2.3.0
 pip>=26.1.2
 pyserial-asyncio==0.6
 pyserial==3.5
-pytboss==2025.12.0
+pytboss==2026.7.0
 pytest_homeassistant_custom_component==0.13.347
 ruff==0.15.22
 serialx==1.8.2
