@@ -1,22 +1,22 @@
 name: Update grill docs
 
 # Regenerates docs/SUPPORTED_GRILLS.md whenever the pytboss dependency
-# version changes (typically via a Dependabot PR bumping requirements.txt),
-# and pushes the regenerated file back onto that same PR branch.
+# version changes in requirements.txt.
 #
-# SECURITY: this uses pull_request_target so the job gets a token with
-# write access to push back to the PR branch, but that means it must
-# NEVER check out or execute untrusted (non-Dependabot) PR content with
-# that token ("pwn request" pattern). We therefore:
-#   - gate the whole job on the PR actor being dependabot[bot] (same
-#     restriction auto-merge.yml uses for the same reason)
-#   - never interpolate event data directly into a run: shell script
-#     (branch names etc. are passed via env vars instead, since they
-#     could otherwise be used for command injection)
+# SECURITY: earlier this ran on pull_request_target and checked out the
+# PR's head ref with a write-scoped token so it could push the
+# regenerated doc back onto that PR branch. CodeQL flagged that as
+# "Checkout of untrusted code in a privileged context" (alert #20) even
+# with an actor == dependabot[bot] gate, since a privileged workflow
+# checking out any externally-influenced ref is considered risky
+# regardless of the gate. Triggering on push to main instead sidesteps
+# the problem entirely: this workflow only ever checks out code that has
+# already been merged (via the Dependabot PR + auto-merge.yml), so there
+# is nothing "untrusted" being checked out in a privileged context.
 
 on:
-  pull_request_target:
-    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
     paths:
       - requirements.txt
 
@@ -26,21 +26,15 @@ permissions:
 jobs:
   update-grill-docs:
     runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]'
     steps:
-      - name: ⤵️ Check out PR head
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 2 # Need the previous commit to diff requirements.txt.
 
       - name: 🔍 Check whether pytboss version changed
         id: check
-        env:
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          if git diff "origin/$BASE_REF"...HEAD -- requirements.txt | grep -q '^[+-]pytboss=='; then
+          if git diff HEAD^ HEAD -- requirements.txt | grep -q '^[+-]pytboss=='; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -67,8 +61,6 @@ jobs:
 
       - name: ⬆️ Commit and push changes
         if: steps.check.outputs.changed == 'true'
-        env:
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           if git diff --quiet -- docs/SUPPORTED_GRILLS.md; then
             echo "No changes to docs/SUPPORTED_GRILLS.md"
@@ -78,4 +70,4 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/SUPPORTED_GRILLS.md
           git commit -m "docs: regenerate SUPPORTED_GRILLS.md for pytboss version bump"
-          git push origin "HEAD:$HEAD_REF"
+          git push
