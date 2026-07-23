@@ -1,0 +1,73 @@
+name: Update grill docs
+
+# Regenerates docs/SUPPORTED_GRILLS.md whenever the pytboss dependency
+# version changes in requirements.txt.
+#
+# SECURITY: earlier this ran on pull_request_target and checked out the
+# PR's head ref with a write-scoped token so it could push the
+# regenerated doc back onto that PR branch. CodeQL flagged that as
+# "Checkout of untrusted code in a privileged context" (alert #20) even
+# with an actor == dependabot[bot] gate, since a privileged workflow
+# checking out any externally-influenced ref is considered risky
+# regardless of the gate. Triggering on push to main instead sidesteps
+# the problem entirely: this workflow only ever checks out code that has
+# already been merged (via the Dependabot PR + auto-merge.yml), so there
+# is nothing "untrusted" being checked out in a privileged context.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - requirements.txt
+
+permissions:
+  contents: write
+
+jobs:
+  update-grill-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2 # Need the previous commit to diff requirements.txt.
+
+      - name: 🔍 Check whether pytboss version changed
+        id: check
+        run: |
+          if git diff HEAD^ HEAD -- requirements.txt | grep -q '^[+-]pytboss=='; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v7
+        if: steps.check.outputs.changed == 'true'
+        with:
+          python-version-file: '.python-version'
+
+      - name: 📦 Install dependencies
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          python -m pip install uv
+          uv venv
+          . .venv/bin/activate
+          uv pip install -r requirements.txt
+
+      - name: 📝 Regenerate docs/SUPPORTED_GRILLS.md
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          . .venv/bin/activate
+          python3 -m scripts.generate_grill_docs
+
+      - name: ⬆️ Commit and push changes
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          if git diff --quiet -- docs/SUPPORTED_GRILLS.md; then
+            echo "No changes to docs/SUPPORTED_GRILLS.md"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/SUPPORTED_GRILLS.md
+          git commit -m "docs: regenerate SUPPORTED_GRILLS.md for pytboss version bump"
+          git push
