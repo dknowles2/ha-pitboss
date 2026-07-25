@@ -29,6 +29,7 @@ class GrillLight(BaseEntity, LightEntity):
     """PitBoss light class."""
 
     _attr_supported_color_modes = {ColorMode.ONOFF}  # noqa: RUF012
+    _attr_color_mode = ColorMode.ONOFF
 
     def __init__(
         self, coordinator: PitBossDataUpdateCoordinator, entity_unique_id: str
