@@ -1,7 +1,8 @@
 """Number platform for pitboss."""
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Literal
+from typing import Literal
 
 from homeassistant.components.number import NumberEntity, NumberEntityDescription
 from homeassistant.components.number.const import NumberDeviceClass
@@ -15,8 +16,8 @@ from pytboss.api import PitBoss
 from .const import (
     DEFAULT_PROBE_CELSIUS_STEP,
     DEFAULT_PROBE_FAHRENHEIT_STEP,
-    DEFAULT_PROBE_MIN_TEMP,
     DEFAULT_PROBE_MAX_TEMP,
+    DEFAULT_PROBE_MIN_TEMP,
     DOMAIN,
 )
 from .coordinator import PitBossDataUpdateCoordinator
@@ -83,9 +84,8 @@ class TargetProbeTemperature(BaseEntity, NumberEntity):
     @property
     def native_unit_of_measurement(self) -> UnitOfTemperature | None:
         """Return the unit of measurement of the entity."""
-        if data := self.coordinator.data:
-            if not data.get("isFahrenheit"):
-                return UnitOfTemperature.CELSIUS
+        if (data := self.coordinator.data) and not data.get("isFahrenheit"):
+            return UnitOfTemperature.CELSIUS
         return UnitOfTemperature.FAHRENHEIT
 
     @property
