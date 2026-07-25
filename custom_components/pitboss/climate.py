@@ -107,7 +107,9 @@ class GrillClimate(BaseEntity, ClimateEntity):
         if hvac_mode == HVACMode.OFF:
             await self.async_turn_off()
         elif hvac_mode == HVACMode.HEAT:
-            LOGGER.warn("For safety reasons, the grill cannot be turned on remotely.")
+            LOGGER.warning(
+                "For safety reasons, the grill cannot be turned on remotely."
+            )
 
     @property
     def hvac_mode(self) -> HVACMode | None:

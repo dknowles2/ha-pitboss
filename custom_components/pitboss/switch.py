@@ -64,7 +64,7 @@ class PowerSwitch(BaseSwitchEntity):
 
     async def async_turn_on(self, **_: Any) -> None:
         """Turn on the switch."""
-        LOGGER.warn("For safety reasons, the grill cannot be turned on remotely.")
+        LOGGER.warning("For safety reasons, the grill cannot be turned on remotely.")
 
     async def async_turn_off(self, **_: Any) -> None:
         """Turn off the switch."""

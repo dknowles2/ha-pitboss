@@ -1,14 +1,38 @@
 from collections.abc import Awaitable, Callable, Generator
+from typing import TypeVar
 from unittest.mock import Mock, patch
 
 import pytest
 from homeassistant.const import CONF_DEVICE_ID, CONF_MODEL, CONF_PASSWORD, CONF_PROTOCOL
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_platform as ep
+from homeassistant.helpers.entity import Entity
 from homeassistant.util.unit_system import US_CUSTOMARY_SYSTEM, UnitSystem
 from pytboss.grills import Grill, get_grill
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.pitboss.const import DOMAIN, PROTOCOL_WSS
+
+_EntityT = TypeVar("_EntityT", bound=Entity)
+
+
+def get_entity(
+    hass: HomeAssistant,
+    platform_domain: str,
+    entity_id: str,
+    entity_type: type[_EntityT],
+) -> _EntityT:
+    """Look up a live entity object bypassing the HA state machine.
+
+    Useful for exercising code paths (like a falsy-data fallback) that HA's
+    own state-write pipeline skips once an entity is marked unavailable.
+    """
+    for platform in ep.async_get_platforms(hass, DOMAIN):
+        if platform.domain == platform_domain:
+            entity = platform.entities[entity_id]
+            assert isinstance(entity, entity_type)
+            return entity
+    raise AssertionError(f"{platform_domain} platform not found")
 
 
 @pytest.fixture(autouse=True)
