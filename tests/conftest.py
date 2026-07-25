@@ -1,4 +1,4 @@
-from typing import Awaitable, Callable, Generator
+from collections.abc import Awaitable, Callable, Generator
 from unittest.mock import Mock, patch
 
 import pytest

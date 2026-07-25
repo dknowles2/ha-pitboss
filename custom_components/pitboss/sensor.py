@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Literal
+
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.components.sensor.const import SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
@@ -147,9 +148,8 @@ class ProbeSensor(BaseSensorEntity):
 
     @property
     def native_unit_of_measurement(self) -> str | None:
-        if data := self.coordinator.data:
-            if not data.get("isFahrenheit"):
-                return UnitOfTemperature.CELSIUS
+        if (data := self.coordinator.data) and not data.get("isFahrenheit"):
+            return UnitOfTemperature.CELSIUS
         return UnitOfTemperature.FAHRENHEIT
 
 

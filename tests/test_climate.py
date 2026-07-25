@@ -1,4 +1,4 @@
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 import pytest
 from homeassistant.core import HomeAssistant
@@ -9,7 +9,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 async def test_min_temp(
     hass: HomeAssistant,
     mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
-    want: int | float,
+    want: float,
 ) -> None:
     await mock_add_config_entry()
     temps = hass.states.get("climate.mygrill_grill_temperature")
@@ -21,7 +21,7 @@ async def test_min_temp(
 async def test_max_temp(
     hass: HomeAssistant,
     mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
-    want: int | float,
+    want: float,
 ) -> None:
     await mock_add_config_entry()
     temps = hass.states.get("climate.mygrill_grill_temperature")

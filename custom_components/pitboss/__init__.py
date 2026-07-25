@@ -116,10 +116,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     try:
         await coordinator.async_config_entry_first_refresh()
-    except ConfigEntryNotReady as ex:
+    except ConfigEntryNotReady:
         await conn.disconnect()
         await pitboss.stop()
-        raise ex
+        raise
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True

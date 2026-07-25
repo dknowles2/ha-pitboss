@@ -34,7 +34,7 @@ async def async_setup_entry(
 class GrillClimate(BaseEntity, ClimateEntity):
     """PitBoss climate class for the grill."""
 
-    _attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]
+    _attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]  # noqa: RUF012
     _attr_supported_features = (
         ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.TURN_OFF
     )
@@ -76,23 +76,20 @@ class GrillClimate(BaseEntity, ClimateEntity):
 
     @property
     def temperature_unit(self) -> str:
-        if data := self.coordinator.data:
-            if not data.get("isFahrenheit", False):
-                return UnitOfTemperature.CELSIUS
+        if (data := self.coordinator.data) and not data.get("isFahrenheit", False):
+            return UnitOfTemperature.CELSIUS
         return UnitOfTemperature.FAHRENHEIT
 
     @property
     def current_temperature(self) -> float | None:
-        if data := self.coordinator.data:
-            if "grillTemp" in data:
-                return float(data["grillTemp"])
+        if (data := self.coordinator.data) and "grillTemp" in data:
+            return float(data["grillTemp"])
         return None
 
     @property
     def target_temperature(self) -> float | None:
-        if data := self.coordinator.data:
-            if "grillSetTemp" in data:
-                return float(data["grillSetTemp"])
+        if (data := self.coordinator.data) and "grillSetTemp" in data:
+            return float(data["grillSetTemp"])
         return None
 
     async def async_set_temperature(self, **kwargs) -> None:

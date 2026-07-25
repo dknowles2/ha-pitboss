@@ -28,7 +28,7 @@ async def async_setup_entry(
 class GrillLight(BaseEntity, LightEntity):
     """PitBoss light class."""
 
-    _attr_supported_color_modes = {ColorMode.ONOFF}
+    _attr_supported_color_modes = {ColorMode.ONOFF}  # noqa: RUF012
 
     def __init__(
         self, coordinator: PitBossDataUpdateCoordinator, entity_unique_id: str
