@@ -7,6 +7,7 @@ from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 from homeassistant.const import CONF_DEVICE_ID, CONF_MODEL, CONF_PASSWORD, CONF_PROTOCOL
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from pytboss import grills
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.pitboss.const import DOMAIN, PROTOCOL_WSS
@@ -84,21 +85,47 @@ async def test_user_flow_creates_entry(hass: HomeAssistant) -> None:
     }
 
 
-async def test_user_flow_pbl2_maps_to_pbl3_control_board(
-    hass: HomeAssistant,
+@pytest.mark.parametrize("control_board", ["PBL2", "LBL", "LFS"])
+async def test_user_flow_offers_that_control_boards_models(
+    hass: HomeAssistant, control_board: str
 ) -> None:
+    """The flow lists the models for the board the grill advertises.
+
+    PBL2 used to be rewritten to PBL3 because pytboss had no PBL2 definitions,
+    and LBL and LFS aborted the flow outright for the same reason, so a grill
+    could be discovered but not added.
+    """
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_DEVICE_ID: f"{control_board}-ABC123"}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "more_info"
+    data_schema = result["data_schema"]
+    assert data_schema is not None
+    models = set(data_schema.schema[CONF_MODEL].container)
+    assert models == {g.name for g in grills.get_grills(control_board)}
+    assert models
+
+
+async def test_user_flow_pbl2_is_not_rewritten_to_pbl3(hass: HomeAssistant) -> None:
+    """A PBL2 grill gets PBL2 definitions, not the ones PBL3 ships.
+
+    The two boards parse temperatures differently, so resolving one as the
+    other is not harmless.
+    """
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {CONF_DEVICE_ID: "PBL2-ABC123"}
     )
-    assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "more_info"
     data_schema = result["data_schema"]
     assert data_schema is not None
-    models = data_schema.schema[CONF_MODEL].container
-    assert len(models) > 0
+    models = set(data_schema.schema[CONF_MODEL].container)
+    assert models != {g.name for g in grills.get_grills("PBL3")}
 
 
 async def test_user_flow_already_configured_aborts(hass: HomeAssistant) -> None:
