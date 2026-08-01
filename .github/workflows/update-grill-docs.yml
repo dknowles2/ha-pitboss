@@ -19,6 +19,11 @@ on:
     branches: [main]
     paths:
       - requirements.txt
+  # Lets the docs be brought up to date without waiting for a version bump,
+  # and gives the push a way to be exercised: it only ever ran once before,
+  # found nothing to commit, and so never revealed that the Main ruleset
+  # rejects it.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -34,7 +39,12 @@ jobs:
       - name: 🔍 Check whether pytboss version changed
         id: check
         run: |
-          if git diff HEAD^ HEAD -- requirements.txt | grep -q '^[+-]pytboss=='; then
+          # A manual run has no version bump to diff against, and is only ever
+          # started because someone wants the docs regenerated, so take it at
+          # its word.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff HEAD^ HEAD -- requirements.txt | grep -q '^[+-]pytboss=='; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
