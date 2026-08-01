@@ -25,16 +25,30 @@ on:
   # rejects it.
   workflow_dispatch:
 
+# The push below is made with a deploy key, not GITHUB_TOKEN, so the token
+# itself needs no write access.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   update-grill-docs:
     runs-on: ubuntu-latest
+    # Pushing to main means bypassing the Main ruleset. That bypass is granted
+    # to one write-enabled deploy key rather than to the Actions app, so no
+    # other workflow's GITHUB_TOKEN can reach main. The key's private half is
+    # an environment secret and this environment is restricted to main, so a
+    # workflow on any other branch cannot read it either.
+    environment: docs
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 2 # Need the previous commit to diff requirements.txt.
+          # Clones over SSH with the deploy key, so the push at the end is
+          # authenticated as the key. Unlike GITHUB_TOKEN, a deploy key push
+          # does trigger workflows -- harmless here, because the commit only
+          # touches docs/ and the push trigger above filters on
+          # requirements.txt, so this cannot re-fire itself.
+          ssh-key: ${{ secrets.DOCS_DEPLOY_KEY }}
 
       - name: 🔍 Check whether pytboss version changed
         id: check
