@@ -34,10 +34,15 @@ jobs:
   update-grill-docs:
     runs-on: ubuntu-latest
     # Pushing to main means bypassing the Main ruleset. That bypass is granted
-    # to one write-enabled deploy key rather than to the Actions app, so no
-    # other workflow's GITHUB_TOKEN can reach main. The key's private half is
-    # an environment secret and this environment is restricted to main, so a
-    # workflow on any other branch cannot read it either.
+    # to deploy keys rather than to the Actions app, so no workflow's
+    # GITHUB_TOKEN can reach main. It is not per-key -- the rulesets API takes
+    # a null actor_id for actor_type DeployKey -- so any write-enabled deploy
+    # key added to this repo later inherits it. That is still far narrower than
+    # the app bypass, which every workflow acquires just by running, whereas a
+    # deploy key has to be added deliberately by an admin.
+    #
+    # The key's private half is an environment secret and this environment is
+    # restricted to main, so a workflow on any other branch cannot read it.
     environment: docs
     steps:
       - uses: actions/checkout@v7
