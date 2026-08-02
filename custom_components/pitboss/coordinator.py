@@ -57,9 +57,32 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         await self.api.subscribe_state(self._on_state_update)
         await self._start_api()
 
+    def _merge_state(self, state: StateDict) -> StateDict:
+        """Fold a state frame onto the last known one.
+
+        The board answers with two independent frames, status (`sc_11`) and
+        temperatures (`sc_12`), and clears them as soon as it forwards a
+        command to the MCU. A read landing in that window returns one frame
+        without the other, and pytboss simply omits the missing half's keys,
+        so every entity backed by them would go unknown until the next
+        successful read.
+
+        Only *absent* keys are carried over. A key present with a null value
+        is a real reading -- an unplugged probe -- and overwrites.
+        """
+        # Copy rather than hand back the incoming dict: pytboss gives every
+        # subscriber the same StateDict instance and keeps mutating it.
+        if not self.data:
+            return state.copy()
+        if not state:
+            return self.data
+        merged = self.data.copy()
+        merged.update(state)
+        return merged
+
     async def _on_state_update(self, data: StateDict) -> None:
         self.logger.debug("Received data: %s", data)
-        self.async_set_updated_data(data)
+        self.async_set_updated_data(self._merge_state(data))
 
     async def _start_api(self) -> None:
         try:
@@ -85,7 +108,7 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         # Relying solely on push notifications means sensors can go stale after
         # a reconnect if push notifications stop being delivered.
         try:
-            return await self.api.get_state()
+            return self._merge_state(await self.api.get_state())
         except NotConnectedError as ex:
             raise UpdateFailed("Grill not connected") from ex
         except RPCError as ex:
