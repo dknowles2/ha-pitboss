@@ -1,6 +1,9 @@
 """DataUpdateCoordinator for PitBoss."""
 
+from math import floor
+
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -31,6 +34,23 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         self.device_info = device_info
         self.api = api
         self._api_started = False
+
+    def accepted_setpoints(self, unit: str) -> list[float]:
+        """Grill setpoints the control board honours, expressed in `unit`.
+
+        The board ignores anything that is not on this list. A couple of
+        models publish a Celsius list of their own; for everyone else it is
+        derived from the Fahrenheit one using the same conversion the boards
+        that convert in their own parsing routine use -- `floor((F - 32) /
+        1.8)` -- so the values match what the panel will show.
+        """
+        fahrenheit = self.api.spec.temp_increments or []
+        if unit != UnitOfTemperature.CELSIUS:
+            return [float(v) for v in fahrenheit]
+        raw = self.api.spec.json.get("celsius_temp_increment") or ""
+        if celsius := [int(v) for v in raw.split("/") if v.strip().isdigit()]:
+            return [float(v) for v in celsius]
+        return [float(floor((v - 32) / 1.8)) for v in fahrenheit]
 
     async def _async_setup(self) -> None:
         """Set up the coordinator."""
