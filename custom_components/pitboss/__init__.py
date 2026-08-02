@@ -116,7 +116,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     try:
         await coordinator.async_config_entry_first_refresh()
-    except ConfigEntryNotReady:
+    except Exception:
+        # Any failure here aborts the setup, so the transport has to be
+        # released. Catching only ConfigEntryNotReady stranded the socket and
+        # its receive task on every other error, and each retry added another.
+        hass.data[DOMAIN].pop(entry.entry_id, None)
         await conn.disconnect()
         await pitboss.stop()
         raise

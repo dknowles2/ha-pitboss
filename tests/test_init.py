@@ -9,6 +9,7 @@ from pytboss.exceptions import GrillUnavailable
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.pitboss.const import DOMAIN, PROTOCOL_BLE, PROTOCOL_WSS
+from custom_components.pitboss.coordinator import PitBossDataUpdateCoordinator
 
 pytestmark = pytest.mark.parametrize("model", ["PBV4PS2"])
 
@@ -140,3 +141,33 @@ async def test_unload_entry_stops_api(
     assert entry.state is ConfigEntryState.NOT_LOADED
     assert entry.entry_id not in hass.data.get(DOMAIN, {})
     mock_pitboss.stop.assert_awaited_once()
+
+
+async def test_setup_entry_releases_transport_on_unexpected_error(
+    hass: HomeAssistant, mock_wss_conn: Mock, mock_pitboss: Mock
+) -> None:
+    """Any first-refresh failure releases the transport, not just not-ready."""
+    entry = MockConfigEntry(
+        title="title",
+        domain=DOMAIN,
+        data={
+            CONF_DEVICE_ID: "mygrill",
+            CONF_MODEL: "PBV4PS2",
+            CONF_PASSWORD: "asdfasdf",
+            CONF_PROTOCOL: PROTOCOL_WSS,
+        },
+        unique_id="mygrillid",
+    )
+    entry.add_to_hass(hass)
+    with patch.object(
+        PitBossDataUpdateCoordinator,
+        "async_config_entry_first_refresh",
+        side_effect=RuntimeError("boom"),
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    mock_wss_conn.disconnect.assert_awaited_once()
+    mock_pitboss.stop.assert_awaited_once()
+    assert entry.entry_id not in hass.data.get(DOMAIN, {})
