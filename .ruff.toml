@@ -1,0 +1,19 @@
+# Ruff configuration.
+#
+# This repo keeps per-tool config in its own file -- see mypy.ini and
+# pytest.ini -- and has no pyproject.toml. Adding one only to hold these two
+# settings would also make uv treat the repo as a buildable project, which it
+# is not.
+#
+# `line-length` is what `ruff format` wraps to, so CI and a local run have to
+# agree on it. `target-version` was previously unset entirely: with no
+# pyproject.toml there was no `requires-python` for ruff to infer it from, so
+# version-dependent rules had nothing to work against. 3.14 matches
+# .python-version and Home Assistant's own floor.
+line-length    = 88
+target-version = "py314"
+
+# Deliberately no `[lint] select`: ruff 0.16's default rule set is much wider
+# than the `E4, E7, E9, F` the docs describe -- it includes BLE, B, S and
+# ASYNC among others, which is why `# noqa: BLE001` appears in this tree at
+# all. Naming a narrower set here would silently switch rules off.

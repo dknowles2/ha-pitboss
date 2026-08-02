@@ -21,7 +21,9 @@ PACKAGE = "pytboss"
 
 
 def pinned_version(requirements_text: str, package: str) -> str:
-    match = re.search(rf"^{re.escape(package)}==([^\s]+)$", requirements_text, re.MULTILINE)
+    match = re.search(
+        rf"^{re.escape(package)}==([^\s]+)$", requirements_text, re.MULTILINE
+    )
     if not match:
         raise SystemExit(f"Could not find pinned '{package}==' line in {REQUIREMENTS}")
     return match.group(1)

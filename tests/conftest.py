@@ -1,5 +1,4 @@
 from collections.abc import Awaitable, Callable, Generator
-from typing import TypeVar
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -13,15 +12,13 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.pitboss.const import DOMAIN, PROTOCOL_WSS
 
-_EntityT = TypeVar("_EntityT", bound=Entity)
 
-
-def get_entity(
+def get_entity[EntityT: Entity](
     hass: HomeAssistant,
     platform_domain: str,
     entity_id: str,
-    entity_type: type[_EntityT],
-) -> _EntityT:
+    entity_type: type[EntityT],
+) -> EntityT:
     """Look up a live entity object bypassing the HA state machine.
 
     Useful for exercising code paths (like a falsy-data fallback) that HA's
