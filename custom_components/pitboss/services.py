@@ -1,0 +1,82 @@
+"""Services for pitboss."""
+
+from __future__ import annotations
+
+import voluptuous as vol
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import ATTR_DEVICE_ID, CONF_PASSWORD
+from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
+
+from .const import DOMAIN, LOGGER
+from .coordinator import PitBossDataUpdateCoordinator
+
+SERVICE_SET_GRILL_PASSWORD = "set_grill_password"
+
+SET_GRILL_PASSWORD_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_DEVICE_ID): cv.string,
+        # Omit (or pass an empty string) to remove the password.
+        vol.Optional(CONF_PASSWORD, default=""): cv.string,
+    }
+)
+
+
+def _coordinator_for_device(
+    hass: HomeAssistant, device_id: str
+) -> tuple[PitBossDataUpdateCoordinator, ConfigEntry]:
+    """Return the coordinator and config entry for a PitBoss device.
+
+    Returns the entry itself rather than its id so the caller cannot end up
+    holding one without the other.
+    """
+    device = dr.async_get(hass).async_get(device_id)
+    if device is None:
+        raise ServiceValidationError(f"Unknown device: {device_id}")
+    for entry_id in device.config_entries:
+        coordinator = hass.data.get(DOMAIN, {}).get(entry_id)
+        entry = hass.config_entries.async_get_entry(entry_id)
+        if coordinator is not None and entry is not None:
+            return coordinator, entry
+    raise ServiceValidationError(f"Device {device_id} is not a PitBoss grill")
+
+
+async def _async_set_grill_password(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Set or remove the grill password."""
+    coordinator, entry = _coordinator_for_device(hass, call.data[ATTR_DEVICE_ID])
+    new_password: str = call.data[CONF_PASSWORD]
+
+    if not coordinator.api.is_connected():
+        raise HomeAssistantError(
+            "The grill is not connected; turn it on and try again."
+        )
+
+    try:
+        await coordinator.api.set_grill_password(new_password)
+    except Exception as ex:
+        raise HomeAssistantError(f"Could not set the grill password: {ex}") from ex
+
+    # Keep the config entry in sync, otherwise Home Assistant would reconnect
+    # with the old password after a restart and every command would be
+    # rejected by the grill.
+    hass.config_entries.async_update_entry(
+        entry, data={**entry.data, CONF_PASSWORD: new_password}
+    )
+    LOGGER.info("Grill password %s", "removed" if not new_password else "updated")
+
+
+@callback
+def async_register_services(hass: HomeAssistant) -> None:
+    """Register PitBoss services."""
+
+    async def handle_set_grill_password(call: ServiceCall) -> None:
+        await _async_set_grill_password(hass, call)
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_GRILL_PASSWORD,
+        handle_set_grill_password,
+        schema=SET_GRILL_PASSWORD_SCHEMA,
+    )

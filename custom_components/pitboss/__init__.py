@@ -22,6 +22,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.typing import ConfigType
 from pytboss import api, ble, wss
 from pytboss.transport import Transport
 
@@ -34,6 +35,7 @@ from .const import (
     PROTOCOL_WSS,
 )
 from .coordinator import PitBossDataUpdateCoordinator
+from .services import async_register_services
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
@@ -83,6 +85,16 @@ async def _connect_ble(
         raise ConfigEntryNotReady
 
     return conn
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the integration.
+
+    Actions belong to the integration rather than to any one grill, so they
+    are registered once here instead of per config entry.
+    """
+    async_register_services(hass)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
