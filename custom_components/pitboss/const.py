@@ -9,6 +9,8 @@ NAME = "PitBoss"
 DOMAIN = "pitboss"
 MANUFACTURER = NAME
 PING_INTERVAL = timedelta(seconds=30)
+# Diagnostics change slowly; no need to read them at the poll rate.
+SYS_INFO_INTERVAL = 60.0
 PROTOCOL_WSS = "wss"
 PROTOCOL_BLE = "ble"
 ALL_PROTOCOLS = (PROTOCOL_BLE, PROTOCOL_WSS)

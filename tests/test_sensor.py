@@ -144,3 +144,37 @@ async def test_no_firmware_sensor_when_the_grill_does_not_answer(
     mock_pitboss.get_firmware_version.side_effect = RuntimeError("nope")
     await mock_add_config_entry()
     assert hass.states.get("sensor.mygrill_firmware_version") is None
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_controller_diagnostics(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    mock_pitboss.config.get_info.return_value = {"uptime": 3600, "ram_free": 61000}
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data({"moduleIsOn": False})
+    await hass.async_block_till_done()
+
+    uptime = hass.states.get("sensor.mygrill_controller_uptime")
+    assert uptime is not None
+    assert uptime.state == "3600"
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_controller_diagnostics_are_not_read_every_poll(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """They change slowly; a round trip per poll would be wasted."""
+    mock_pitboss.config.get_info.return_value = {"uptime": 3600, "ram_free": 61000}
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    mock_pitboss.config.get_info.reset_mock()
+
+    await coordinator._async_update_data()
+    await coordinator._async_update_data()
+    mock_pitboss.config.get_info.assert_not_awaited()

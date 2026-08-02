@@ -8,7 +8,12 @@ from typing import Literal
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.components.sensor.const import SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory, UnitOfTemperature, UnitOfTime
+from homeassistant.const import (
+    EntityCategory,
+    UnitOfInformation,
+    UnitOfTemperature,
+    UnitOfTime,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -90,6 +95,8 @@ async def async_setup_entry(
     entity_description: PBSensorEntityDescription
     for entity_description in PROBE_ENTITY_DESCRIPTIONS:
         entities.append(ProbeSensor(coordinator, entry.unique_id, entity_description))
+    for description in SYS_INFO_DESCRIPTIONS:
+        entities.append(SysInfoSensor(coordinator, entry.unique_id, description))
     if coordinator.firmware_version:
         entities.append(FirmwareSensor(coordinator, entry.unique_id))
     if coordinator.api.spec.json.get("has_recipe_functionality", False):
@@ -200,3 +207,65 @@ class FirmwareSensor(BaseEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         return self.coordinator.firmware_version
+
+
+@dataclass(frozen=True, kw_only=True)
+class SysInfoSensorEntityDescription(SensorEntityDescription):
+    """Describes a sensor backed by the control board's system info."""
+
+    # Key inside the Sys.GetInfo payload.
+    info_key: str
+    entity_category: EntityCategory = EntityCategory.DIAGNOSTIC
+
+
+SYS_INFO_DESCRIPTIONS = (
+    SysInfoSensorEntityDescription(
+        key="controller_uptime",
+        info_key="uptime",
+        name="Controller uptime",
+        icon="mdi:timer-outline",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        suggested_display_precision=0,
+    ),
+    SysInfoSensorEntityDescription(
+        key="controller_free_memory",
+        info_key="ram_free",
+        name="Controller free memory",
+        icon="mdi:memory",
+        native_unit_of_measurement=UnitOfInformation.BYTES,
+        suggested_unit_of_measurement=UnitOfInformation.KILOBYTES,
+        device_class=SensorDeviceClass.DATA_SIZE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+    ),
+)
+
+
+class SysInfoSensor(BaseEntity, SensorEntity):
+    """Diagnostic sensor backed by the control board's system info."""
+
+    entity_description: SysInfoSensorEntityDescription
+
+    def __init__(
+        self,
+        coordinator: PitBossDataUpdateCoordinator,
+        entry_unique_id: str,
+        entity_description: SysInfoSensorEntityDescription,
+    ) -> None:
+        super().__init__(coordinator, entry_unique_id)
+        self.entity_description = entity_description
+        self._attr_unique_id = f"{entity_description.key}_{entry_unique_id}"
+
+    @property
+    def available(self) -> bool:
+        # Without the connection check these would keep reporting whatever
+        # was read before the grill went away.
+        return (
+            super().available
+            and self.entity_description.info_key in self.coordinator.sys_info
+        )
+
+    @property
+    def native_value(self):
+        return self.coordinator.sys_info.get(self.entity_description.info_key)

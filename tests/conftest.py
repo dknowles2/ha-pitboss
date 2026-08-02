@@ -1,6 +1,6 @@
 from collections.abc import Awaitable, Callable, Generator
 from typing import TypeVar
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from homeassistant.const import CONF_DEVICE_ID, CONF_MODEL, CONF_PASSWORD, CONF_PROTOCOL
@@ -127,4 +127,8 @@ def mock_pitboss(spec: Grill) -> Generator[Mock]:
     with patch("pytboss.api.PitBoss", autospec=True) as mock_pitboss_cls:
         api = mock_pitboss_cls.return_value
         api.spec = spec
+        # `config` and `fs` are set in PitBoss.__init__, so autospec does not
+        # know about them.
+        api.config = Mock()
+        api.config.get_info = AsyncMock(return_value={})
         yield api

@@ -1,6 +1,7 @@
 """DataUpdateCoordinator for PitBoss."""
 
 from math import floor
+from time import monotonic
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
@@ -11,7 +12,7 @@ from pytboss.api import PitBoss
 from pytboss.exceptions import GrillUnavailable, NotConnectedError, RPCError
 from pytboss.grills import StateDict
 
-from .const import DOMAIN, LOGGER, PING_INTERVAL
+from .const import DOMAIN, LOGGER, PING_INTERVAL, SYS_INFO_INTERVAL
 
 
 class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
@@ -35,6 +36,9 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         self.device_info = device_info
         self.api = api
         self._api_started = False
+        # Latest Sys.GetInfo payload from the control board.
+        self.sys_info: dict = {}
+        self._sys_info_at = 0.0
 
     def accepted_setpoints(self, unit: str) -> list[float]:
         """Grill setpoints the control board honours, expressed in `unit`.
@@ -98,6 +102,21 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         except GrillUnavailable as ex:
             raise UpdateFailed("Grill unavailable") from ex
 
+    async def _async_refresh_sys_info(self) -> None:
+        """Refresh the control board's system info. Never fatal.
+
+        Uptime and free memory change slowly and are diagnostic, so they are
+        not worth a round trip on every poll.
+        """
+        now = monotonic()
+        if self.sys_info and now - self._sys_info_at < SYS_INFO_INTERVAL:
+            return
+        try:
+            self.sys_info = await self.api.config.get_info()
+            self._sys_info_at = now
+        except Exception as ex:  # noqa: BLE001
+            self.logger.debug("Could not fetch the system info: %s", ex)
+
     async def _async_update_data(self) -> StateDict:
         if not self._api_started:
             self.logger.debug("Starting API")
@@ -110,6 +129,8 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
             await self.api.ping(timeout=10.0)
         except NotConnectedError as ex:
             raise UpdateFailed("Grill not connected") from ex
+
+        await self._async_refresh_sys_info()
 
         # Always fetch the current state to ensure sensors stay up-to-date.
         # Relying solely on push notifications means sensors can go stale after
