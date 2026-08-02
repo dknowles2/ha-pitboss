@@ -1,9 +1,11 @@
 from collections.abc import Awaitable, Callable
 from typing import cast
+from unittest.mock import Mock
 
 import pytest
 from conftest import get_entity
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from pytboss.grills import StateDict
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -111,3 +113,34 @@ async def test_native_value_none_without_data(
     await mock_add_config_entry()
     entity = get_entity(hass, "sensor", "sensor.mygrill_probe_1", ProbeSensor)
     assert entity.native_value is None
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_firmware_version_sensor(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """Read once at setup, and reported on the device too."""
+    mock_pitboss.get_firmware_version.return_value = {"firmwareVersion": "0.5.7"}
+    await mock_add_config_entry()
+
+    state = hass.states.get("sensor.mygrill_firmware_version")
+    assert state is not None
+    assert state.state == "0.5.7"
+
+    device = dr.async_get(hass).async_get_device({(DOMAIN, "mygrill")})
+    assert device is not None
+    assert device.sw_version == "0.5.7"
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_no_firmware_sensor_when_the_grill_does_not_answer(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """A failed read must not break setup, and creates no entity."""
+    mock_pitboss.get_firmware_version.side_effect = RuntimeError("nope")
+    await mock_add_config_entry()
+    assert hass.states.get("sensor.mygrill_firmware_version") is None

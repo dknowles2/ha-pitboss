@@ -20,6 +20,7 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
     config_entry: ConfigEntry
     device_info: DeviceInfo
     api: PitBoss
+    firmware_version: str | None = None
 
     def __init__(
         self,
@@ -56,6 +57,12 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         """Set up the coordinator."""
         await self.api.subscribe_state(self._on_state_update)
         await self._start_api()
+        try:
+            result = await self.api.get_firmware_version()
+            self.firmware_version = result.get("firmwareVersion")
+        except Exception as ex:  # noqa: BLE001
+            # Cosmetic; never worth failing setup over.
+            self.logger.debug("Could not fetch the firmware version: %s", ex)
 
     def _merge_state(self, state: StateDict) -> StateDict:
         """Fold a state frame onto the last known one.
