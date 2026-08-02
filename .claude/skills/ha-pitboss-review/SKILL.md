@@ -21,9 +21,9 @@ git diff "$(git merge-base origin/main HEAD)"
 
 For a pull request, get context with `gh pr view` and `gh pr diff` first.
 
-**Review only. Do not make changes, and do not post to GitHub — report in the
-console.** Do not spawn subagents; this repository is small enough to review
-directly.
+**Review only — do not change the code being reviewed.** Report in the console
+by default; post to GitHub when asked to, following "Posting a review" below.
+Do not spawn subagents; this repository is small enough to review directly.
 
 ## 1. The boundary with pytboss — check this first
 
@@ -111,3 +111,44 @@ Overall assessment: request changes.
 - [PROBLEM] coordinator.py:41 - Subscription never torn down
 - [SUGGESTION] test_sensor.py:20 - Assertion passes even if the entity is absent
 ```
+
+## Posting a review
+
+Only when asked. Two things make this awkward, both worth knowing in advance.
+
+**`gh pr review` cannot attach inline comments** — it posts a summary body
+only. For line comments, POST the whole review at once:
+
+```sh
+gh api --method POST repos/dknowles2/ha-pitboss/pulls/<N>/reviews --input review.json
+```
+
+```json
+{
+  "event": "REQUEST_CHANGES",
+  "body": "summary",
+  "comments": [
+    {"path": "custom_components/pitboss/services.py", "line": 60,
+     "side": "RIGHT", "body": "..."}
+  ]
+}
+```
+
+`event` is `COMMENT`, `APPROVE` or `REQUEST_CHANGES`. Every `line` must be a
+line the diff actually touches, or the whole call is rejected.
+
+**Contributor branches live on forks**, so `gh api .../contents?ref=<branch>`
+returns 404 and line numbers cannot be confirmed that way. Fetch the head
+first, then read files from it:
+
+```sh
+git fetch origin pull/<N>/head:pr-<N>
+git show pr-<N>:custom_components/pitboss/services.py | grep -n ...
+```
+
+Confirm every anchor line before posting; a citation off by a few lines reads
+as carelessness on someone else's contribution.
+
+Lead the summary with what was verified rather than the objections, especially
+for an outside contributor, and give a concrete replacement with each finding
+instead of only naming the problem.
