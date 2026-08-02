@@ -117,10 +117,11 @@ async def async_setup_entry(
 ):
     """Setup binary_sensor platform."""
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
-    entities: list[BinarySensor] = []
+    entities: list[BinarySensorEntity] = []
     assert entry.unique_id is not None
     for entity_description in ENTITY_DESCRIPTIONS:
         entities.append(BinarySensor(coordinator, entry.unique_id, entity_description))
+    entities.append(ConnectivitySensor(coordinator, entry.unique_id))
     async_add_entities(entities)
 
 
@@ -144,3 +145,32 @@ class BinarySensor(BaseEntity, BinarySensorEntity):
         if data := self.coordinator.data:
             return data.get(self.entity_description.key)
         return None
+
+
+class ConnectivitySensor(BaseEntity, BinarySensorEntity):
+    """Reports whether the grill is currently reachable.
+
+    Unlike every other entity this one stays available while the grill is
+    disconnected: an entity that disappears cannot say the grill is offline,
+    which is the one thing an offline automation needs to hear.
+    """
+
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self,
+        coordinator: PitBossDataUpdateCoordinator,
+        entry_unique_id: str,
+    ) -> None:
+        super().__init__(coordinator, entry_unique_id)
+        self._attr_unique_id = f"connectivity_{entry_unique_id}"
+        self._attr_name = "Connectivity"
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    @property
+    def is_on(self) -> bool:
+        return bool(self.coordinator.api) and self.coordinator.api.is_connected()

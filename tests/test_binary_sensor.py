@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+from unittest.mock import Mock
 
 import pytest
 from conftest import get_entity
@@ -74,3 +75,26 @@ async def test_fan_and_igniter_report_their_state(
     assert igniter is not None
     assert fan.state == "on"
     assert igniter.state == "off"
+
+
+async def test_connectivity_reports_offline_instead_of_vanishing(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """It must stay available while disconnected, or it can't say so."""
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    mock_pitboss.is_connected.return_value = True
+    coordinator.async_set_updated_data({})
+    await hass.async_block_till_done()
+    state = hass.states.get(_entity_id("Connectivity"))
+    assert state is not None
+    assert state.state == "on"
+
+    mock_pitboss.is_connected.return_value = False
+    coordinator.async_set_updated_data({})
+    await hass.async_block_till_done()
+    state = hass.states.get(_entity_id("Connectivity"))
+    assert state is not None
+    assert state.state == "off"
