@@ -56,3 +56,21 @@ async def test_is_on_with_data(
     assert auger is not None
     assert probe_1_error.state == "on"
     assert auger.state == "off"
+
+
+async def test_fan_and_igniter_report_their_state(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """Both are already decoded by pytboss; they just were not exposed."""
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data({"fanState": True, "hotState": False})
+    await hass.async_block_till_done()
+
+    fan = hass.states.get(_entity_id("Fan"))
+    igniter = hass.states.get(_entity_id("Igniter"))
+    assert fan is not None
+    assert igniter is not None
+    assert fan.state == "on"
+    assert igniter.state == "off"
