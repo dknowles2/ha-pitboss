@@ -5,6 +5,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from pytboss.exceptions import GrillUnavailable, NotConnectedError, RPCError
+from pytboss.grills import StateDict
 
 from custom_components.pitboss.coordinator import PitBossDataUpdateCoordinator
 
@@ -105,3 +106,47 @@ async def test_async_update_data_success(
     data = await coordinator._async_update_data()
     mock_pitboss.ping.assert_awaited_once_with(timeout=10.0)
     assert data == {"grillTemp": 225}
+
+
+async def test_async_update_data_keeps_fields_missing_from_a_partial_frame(
+    coordinator: PitBossDataUpdateCoordinator, mock_pitboss: Mock
+) -> None:
+    """A read between the two frames must not blank the other half."""
+    coordinator._api_started = True
+    mock_pitboss.is_connected.return_value = True
+
+    mock_pitboss.get_state.return_value = {"grillTemp": 225, "moduleIsOn": True}
+    coordinator.async_set_updated_data(await coordinator._async_update_data())
+
+    # Only the status frame came back this time.
+    mock_pitboss.get_state.return_value = {"moduleIsOn": False}
+    data = await coordinator._async_update_data()
+    assert data == {"grillTemp": 225, "moduleIsOn": False}
+
+
+async def test_async_update_data_lets_null_readings_through(
+    coordinator: PitBossDataUpdateCoordinator, mock_pitboss: Mock
+) -> None:
+    """A key present with no value is a real reading, not a missing frame."""
+    coordinator._api_started = True
+    mock_pitboss.is_connected.return_value = True
+
+    mock_pitboss.get_state.return_value = {"p1Temp": 70}
+    coordinator.async_set_updated_data(await coordinator._async_update_data())
+
+    # The probe was unplugged: pytboss reports the key as None.
+    mock_pitboss.get_state.return_value = {"p1Temp": None}
+    data = await coordinator._async_update_data()
+    assert data == {"p1Temp": None}
+
+
+async def test_on_state_update_merges_onto_previous_data(
+    coordinator: PitBossDataUpdateCoordinator,
+) -> None:
+    """Pushed updates are merged too, and never stored by reference."""
+    pushed: StateDict = {"grillTemp": 225, "moduleIsOn": True}
+    await coordinator._on_state_update(pushed)
+    assert coordinator.data is not pushed
+
+    await coordinator._on_state_update({"moduleIsOn": False})
+    assert coordinator.data == {"grillTemp": 225, "moduleIsOn": False}
