@@ -22,4 +22,6 @@ with minor wording changes. The original carries no Home Assistant specifics.
 
 ## Important
 
-- Report in the CONSOLE only. Do not post anything to GitHub.
+- Report in the console by default. Post to GitHub only when asked to.
+  (Upstream forbids posting outright; relaxed here, since an audit is
+  sometimes worth leaving on the PR itself.)
