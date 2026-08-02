@@ -17,7 +17,7 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
+from .const import DOMAIN, probe_label
 from .coordinator import PitBossDataUpdateCoordinator
 from .entity import BaseEntity
 
@@ -36,22 +36,18 @@ class ProbeSensorEntityDescription(SensorEntityDescription):
 PROBE_ENTITY_DESCRIPTIONS = (
     ProbeSensorEntityDescription(
         key="p1Temp",
-        name="Probe 1",
         probe_number=1,
     ),
     ProbeSensorEntityDescription(
         key="p2Temp",
-        name="Probe 2",
         probe_number=2,
     ),
     ProbeSensorEntityDescription(
         key="p3Temp",
-        name="Probe 3",
         probe_number=3,
     ),
     ProbeSensorEntityDescription(
         key="p4Temp",
-        name="Probe 4",
         probe_number=4,
     ),
 )
@@ -143,6 +139,7 @@ class ProbeSensor(BaseSensorEntity):
         super().__init__(coordinator, entry_unique_id, entity_description)
         self.probe_number = self.entity_description.probe_number
         self._attr_unique_id = f"probe{self.probe_number}_{entry_unique_id}"
+        self._attr_name = probe_label(coordinator.has_mpc, self.probe_number)
 
     @property
     def entity_registry_enabled_default(self) -> bool:

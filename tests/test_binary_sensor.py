@@ -6,7 +6,11 @@ from conftest import get_entity
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.pitboss.binary_sensor import ENTITY_DESCRIPTIONS, BinarySensor
+from custom_components.pitboss.binary_sensor import (
+    ENTITY_DESCRIPTIONS,
+    PROBE_ERROR_KEYS,
+    BinarySensor,
+)
 from custom_components.pitboss.const import DOMAIN
 from custom_components.pitboss.coordinator import PitBossDataUpdateCoordinator
 
@@ -17,14 +21,25 @@ def _entity_id(name: str) -> str:
     return f"binary_sensor.mygrill_{name.lower().replace(' ', '_')}"
 
 
+# Spelled out rather than computed with `probe_label`, so that a wrong label
+# is a test failure instead of a quietly updated expectation.
+PROBE_ERROR_NAMES = {"err1": "MPC error", "err2": "P2 error", "err3": "P3 error"}
+
+
 async def test_creates_all_entities(
     hass: HomeAssistant,
     mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
 ) -> None:
     await mock_add_config_entry()
     for description in ENTITY_DESCRIPTIONS:
-        assert isinstance(description.name, str)
-        entity_id = _entity_id(description.name)
+        # The probe error sensors carry no description name: the entity sets
+        # `_attr_name` from the port label, which takes precedence anyway.
+        if description.key in PROBE_ERROR_KEYS:
+            name = PROBE_ERROR_NAMES[description.key]
+        else:
+            assert isinstance(description.name, str)
+            name = description.name
+        entity_id = _entity_id(name)
         assert hass.states.get(entity_id) is not None, entity_id
 
 
@@ -33,13 +48,11 @@ async def test_is_on_no_data(
     mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
 ) -> None:
     await mock_add_config_entry()
-    state = hass.states.get(_entity_id("Probe 1 error"))
+    state = hass.states.get(_entity_id("MPC error"))
     assert state is not None
     assert state.state == "unavailable"
 
-    entity = get_entity(
-        hass, "binary_sensor", _entity_id("Probe 1 error"), BinarySensor
-    )
+    entity = get_entity(hass, "binary_sensor", _entity_id("MPC error"), BinarySensor)
     assert entity.is_on is None
 
 
@@ -51,7 +64,7 @@ async def test_is_on_with_data(
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     coordinator.async_set_updated_data({"err1": True, "motorState": False})
     await hass.async_block_till_done()
-    probe_1_error = hass.states.get(_entity_id("Probe 1 error"))
+    probe_1_error = hass.states.get(_entity_id("MPC error"))
     auger = hass.states.get(_entity_id("Auger"))
     assert probe_1_error is not None
     assert auger is not None

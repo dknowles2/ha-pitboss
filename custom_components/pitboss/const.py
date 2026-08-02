@@ -21,3 +21,22 @@ DEFAULT_PROBE_MIN_TEMP = 50
 DEFAULT_PROBE_MAX_TEMP = 250
 DEFAULT_PROBE_FAHRENHEIT_STEP = 1
 DEFAULT_PROBE_CELSIUS_STEP = 1
+
+
+def probe_label(has_mpc: bool, probe_number: int) -> str:
+    """The label the vendor's own app prints next to a probe port.
+
+    Taken from `getProbeLabel` in the Pit Boss Android app (2.10.3), not
+    inferred: on a grill with a control port, protocol probe 1 is that port
+    and the rest keep their protocol number.
+
+    The app's `isMpcProbe(n, settings)` is `settings.hasMpc === true &&
+    n === 1`, so probe 1 -- and only probe 1 -- is the control probe. Its
+    label is `mpcType.toUpperCase()`, defaulting to `MPC`. Every other probe
+    falls through to `"P" + n`, which is why the numbering does not shift.
+
+    Grills without a control port keep the name they have today.
+    """
+    if not has_mpc:
+        return f"Probe {probe_number}"
+    return "MPC" if probe_number == 1 else f"P{probe_number}"

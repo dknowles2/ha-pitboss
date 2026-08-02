@@ -17,8 +17,8 @@ async def test_only_probe_1_entity_created(
     mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
 ) -> None:
     await mock_add_config_entry()
-    assert hass.states.get("number.mygrill_probe_1_target") is not None
-    assert hass.states.get("number.mygrill_probe_2_target") is None
+    assert hass.states.get("number.mygrill_mpc_target") is not None
+    assert hass.states.get("number.mygrill_p2_target") is None
 
 
 @pytest.mark.parametrize("model", ["PB1150PS3"])
@@ -26,6 +26,7 @@ async def test_both_probe_entities_created(
     hass: HomeAssistant,
     mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
 ) -> None:
+    """This grill has no MPC, so the ports keep their plain numbering."""
     await mock_add_config_entry()
     assert hass.states.get("number.mygrill_probe_1_target") is not None
     assert hass.states.get("number.mygrill_probe_2_target") is not None
@@ -52,7 +53,7 @@ async def test_native_value_and_availability(
     # No matching probe temperature reported: entity unavailable.
     coordinator.async_set_updated_data({"p1Target": 165, "isFahrenheit": True})
     await hass.async_block_till_done()
-    state = hass.states.get("number.mygrill_probe_1_target")
+    state = hass.states.get("number.mygrill_mpc_target")
     assert state is not None
     assert state.state == "unavailable"
 
@@ -60,7 +61,7 @@ async def test_native_value_and_availability(
         {"p1Target": 165, "p1Temp": 70, "isFahrenheit": True}
     )
     await hass.async_block_till_done()
-    state = hass.states.get("number.mygrill_probe_1_target")
+    state = hass.states.get("number.mygrill_mpc_target")
     assert state is not None
     assert state.state == "165"
     assert state.attributes["unit_of_measurement"] == "°F"
@@ -85,7 +86,7 @@ async def test_set_native_value(
     await hass.services.async_call(
         "number",
         "set_value",
-        {"entity_id": "number.mygrill_probe_1_target", "value": 180},
+        {"entity_id": "number.mygrill_mpc_target", "value": 180},
         blocking=True,
     )
     mock_pitboss.set_probe_temperature.assert_awaited_once_with(180)
@@ -98,6 +99,6 @@ async def test_native_value_none_without_data(
 ) -> None:
     await mock_add_config_entry()
     entity = get_entity(
-        hass, "number", "number.mygrill_probe_1_target", TargetProbeTemperature
+        hass, "number", "number.mygrill_mpc_target", TargetProbeTemperature
     )
     assert entity.native_value is None
