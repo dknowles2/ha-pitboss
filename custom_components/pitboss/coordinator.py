@@ -57,6 +57,11 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
             return [float(v) for v in celsius]
         return [float(floor((v - 32) / 1.8)) for v in fahrenheit]
 
+    @property
+    def has_mpc(self) -> bool:
+        """Whether the grill has a meat probe control port."""
+        return self.api.spec.has_mpc
+
     async def _async_setup(self) -> None:
         """Set up the coordinator."""
         await self.api.subscribe_state(self._on_state_update)

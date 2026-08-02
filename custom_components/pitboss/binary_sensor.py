@@ -15,7 +15,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
+from .const import DOMAIN, probe_label
 from .coordinator import PitBossDataUpdateCoordinator
 from .entity import BaseEntity
 
@@ -112,6 +112,10 @@ ENTITY_DESCRIPTIONS = (
 )
 
 
+# The grill only reports errors for the first three probes.
+PROBE_ERROR_KEYS = {"err1": 1, "err2": 2, "err3": 3}
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
@@ -139,6 +143,11 @@ class BinarySensor(BaseEntity, BinarySensorEntity):
         super().__init__(coordinator, entry_unique_id)
         self.entity_description = entity_description
         self._attr_unique_id = f"{entity_description.key}_{entry_unique_id}"
+        # Name these after the physical port too, so a grill with an MPC does
+        # not report an "MP1 error" as "Probe 1 error".
+        probe_number = PROBE_ERROR_KEYS.get(entity_description.key)
+        if probe_number is not None:
+            self._attr_name = f"{probe_label(coordinator.has_mpc, probe_number)} error"
 
     @property
     def is_on(self) -> bool | None:

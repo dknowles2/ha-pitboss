@@ -24,9 +24,9 @@ async def test_probe_sensors_enabled_by_meat_probes(
     # probes 3-4 are registered but disabled.
     await mock_add_config_entry()
     registry = er.async_get(hass)
-    assert hass.states.get("sensor.mygrill_probe_1") is not None
-    assert hass.states.get("sensor.mygrill_probe_2") is not None
-    assert hass.states.get("sensor.mygrill_probe_3") is None
+    assert hass.states.get("sensor.mygrill_mpc") is not None
+    assert hass.states.get("sensor.mygrill_mp1") is not None
+    assert hass.states.get("sensor.mygrill_mp2") is None
     assert hass.states.get("sensor.mygrill_probe_4") is None
     entity_id = registry.async_get_entity_id("sensor", DOMAIN, "probe3_mygrillid")
     assert entity_id is not None
@@ -66,14 +66,14 @@ async def test_probe_native_value_and_unit(
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     coordinator.async_set_updated_data({"p1Temp": 165, "isFahrenheit": True})
     await hass.async_block_till_done()
-    state = hass.states.get("sensor.mygrill_probe_1")
+    state = hass.states.get("sensor.mygrill_mpc")
     assert state is not None
     assert state.state == "165"
     assert state.attributes["unit_of_measurement"] == "°F"
 
     coordinator.async_set_updated_data({"p1Temp": 74, "isFahrenheit": False})
     await hass.async_block_till_done()
-    state = hass.states.get("sensor.mygrill_probe_1")
+    state = hass.states.get("sensor.mygrill_mpc")
     assert state is not None
     assert state.state == "165.2"
     assert state.attributes["unit_of_measurement"] == "°F"
@@ -111,7 +111,7 @@ async def test_native_value_none_without_data(
     mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
 ) -> None:
     await mock_add_config_entry()
-    entity = get_entity(hass, "sensor", "sensor.mygrill_probe_1", ProbeSensor)
+    entity = get_entity(hass, "sensor", "sensor.mygrill_mpc", ProbeSensor)
     assert entity.native_value is None
 
 
@@ -178,3 +178,14 @@ async def test_controller_diagnostics_are_not_read_every_poll(
     await coordinator._async_update_data()
     await coordinator._async_update_data()
     mock_pitboss.config.get_info.assert_not_awaited()
+
+
+@pytest.mark.parametrize("model", ["PB2180LK"])
+async def test_probes_keep_plain_numbering_without_mpc(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """Only grills with a control port get the MPC/MP1 naming."""
+    await mock_add_config_entry()
+    assert hass.states.get("sensor.mygrill_probe_1") is not None
+    assert hass.states.get("sensor.mygrill_mpc") is None

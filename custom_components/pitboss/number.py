@@ -19,6 +19,7 @@ from .const import (
     DEFAULT_PROBE_MAX_TEMP,
     DEFAULT_PROBE_MIN_TEMP,
     DOMAIN,
+    probe_label,
 )
 from .coordinator import PitBossDataUpdateCoordinator
 from .entity import BaseEntity
@@ -27,6 +28,7 @@ from .entity import BaseEntity
 @dataclass(frozen=True, kw_only=True)
 class PitBossNumberEntityDescription(NumberEntityDescription):
     key: Literal["p1Target", "p2Target"]
+    probe_number: Literal[1, 2]
     set_fn: Callable[[PitBoss], Callable[[int], Awaitable[dict]]]
     device_class: NumberDeviceClass = NumberDeviceClass.TEMPERATURE
     icon: str = "mdi:thermometer"
@@ -36,12 +38,14 @@ class PitBossNumberEntityDescription(NumberEntityDescription):
 PROBE_1_DESCRIPTION = PitBossNumberEntityDescription(
     key="p1Target",
     name="Probe 1 Target",
+    probe_number=1,
     set_fn=lambda api: api.set_probe_temperature,
     matching_probe_key="p1Temp",
 )
 PROBE_2_DESCRIPTION = PitBossNumberEntityDescription(
     key="p2Target",
     name="Probe 2 Target",
+    probe_number=2,
     set_fn=lambda api: api.set_probe_2_temperature,
     matching_probe_key="p2Temp",
 )
@@ -80,6 +84,8 @@ class TargetProbeTemperature(BaseEntity, NumberEntity):
         super().__init__(coordinator, entry_unique_id)
         self.entity_description: PitBossNumberEntityDescription = entity_description
         self._attr_unique_id = f"{entity_description.key}_{entry_unique_id}"
+        label = probe_label(coordinator.has_mpc, entity_description.probe_number)
+        self._attr_name = f"{label} target"
 
     @property
     def native_unit_of_measurement(self) -> UnitOfTemperature | None:
