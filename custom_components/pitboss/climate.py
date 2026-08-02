@@ -52,6 +52,21 @@ class GrillClimate(BaseEntity, ClimateEntity):
         self._attr_unique_id = f"{self.entity_description.key}_{entry_unique_id}"
 
     @property
+    def _accepted_setpoints(self) -> list[float]:
+        return self.coordinator.accepted_setpoints(self.temperature_unit)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, list[float]] | None:
+        """Publish the setpoints the board accepts.
+
+        The board silently ignores anything else, so a dashboard offering a
+        free slider is misleading. This lets one offer only what works.
+        """
+        if accepted := self._accepted_setpoints:
+            return {"allowed_setpoints": accepted}
+        return None
+
+    @property
     def target_temperature_step(self) -> float:
         if self.temperature_unit == UnitOfTemperature.FAHRENHEIT:
             return 5.0
@@ -60,6 +75,8 @@ class GrillClimate(BaseEntity, ClimateEntity):
 
     @property
     def min_temp(self) -> float:
+        if accepted := self._accepted_setpoints:
+            return min(accepted)
         from_unit = UnitOfTemperature.FAHRENHEIT
         to_unit = self.temperature_unit
         if (min_temp := self.coordinator.api.spec.min_temp) is None:
@@ -68,6 +85,8 @@ class GrillClimate(BaseEntity, ClimateEntity):
 
     @property
     def max_temp(self) -> float:
+        if accepted := self._accepted_setpoints:
+            return max(accepted)
         from_unit = UnitOfTemperature.FAHRENHEIT
         to_unit = self.temperature_unit
         if (max_temp := self.coordinator.api.spec.max_temp) is None:
