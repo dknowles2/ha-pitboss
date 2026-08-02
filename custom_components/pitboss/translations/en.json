@@ -1,55 +1,71 @@
 {
-    "title": "PitBoss",
-    "config": {
-        "abort": {
-            "already_configured": "Grill is already configured",
-            "reconfigure_successful": "Re-configuration was successful",
-            "unknown_grill": "Unknown grill type: {control_board}"
-        },
-        "step": {
-            "bluetooth_confirm": {
-                "description": "Do you want to set up {name}?"
-            },
-            "user": {
-                "description": "The Grill ID can be found in the PitBoss app under the 'Edit Grill' section",
-                "data": {
-                    "device_id": "Grill ID"
-                }
-            },
-            "more_info": {
-                "description": "Select your grill model and input your grill's password, if you have one set",
-                "data": {
-                    "model": "Model",
-                    "password": "Grill password",
-                    "protocol": "Connection protocol"
-                },
-                "data_description": {
-                    "model": "The model is needed to properly communicate with your grill",
-                    "password": "The password for your grill, NOT your PitBoss account",
-                    "protocol": "The protocol to use to connect to your grill."
-                }
-            },
-            "reconfigure": {
-                "description": "Select your grill model and input your grill's password, if you have one set",
-                "data": {
-                    "model": "Model",
-                    "password": "Grill password",
-                    "protocol": "Connection protocol"
-                },
-                "data_description": {
-                    "model": "The model is needed to properly communicate with your grill",
-                    "password": "The password for your grill, NOT your PitBoss account",
-                    "protocol": "The protocol to use to connect to your grill."
-                }
-            }
-        }
+  "title": "PitBoss",
+  "config": {
+    "abort": {
+      "already_configured": "Grill is already configured",
+      "reconfigure_successful": "Re-configuration was successful",
+      "unknown_grill": "Unknown grill type: {control_board}"
     },
-    "selector": {
-        "protocol": {
-            "options": {
-                "ble": "Bluetooth (local)",
-                "wss": "WebSocket (cloud)"
-            }
+    "step": {
+      "bluetooth_confirm": {
+        "description": "Do you want to set up {name}?"
+      },
+      "user": {
+        "description": "The Grill ID can be found in the PitBoss app under the 'Edit Grill' section",
+        "data": {
+          "device_id": "Grill ID"
         }
+      },
+      "more_info": {
+        "description": "Select your grill model and input your grill's password, if you have one set",
+        "data": {
+          "model": "Model",
+          "password": "Grill password",
+          "protocol": "Connection protocol"
+        },
+        "data_description": {
+          "model": "The model is needed to properly communicate with your grill",
+          "password": "The password for your grill, NOT your PitBoss account",
+          "protocol": "The protocol to use to connect to your grill."
+        }
+      },
+      "reconfigure": {
+        "description": "Select your grill model and input your grill's password, if you have one set",
+        "data": {
+          "model": "Model",
+          "password": "Grill password",
+          "protocol": "Connection protocol"
+        },
+        "data_description": {
+          "model": "The model is needed to properly communicate with your grill",
+          "password": "The password for your grill, NOT your PitBoss account",
+          "protocol": "The protocol to use to connect to your grill."
+        }
+      }
     }
+  },
+  "selector": {
+    "protocol": {
+      "options": {
+        "ble": "Bluetooth (local)",
+        "wss": "WebSocket (cloud)"
+      }
+    }
+  },
+  "services": {
+    "set_grill_password": {
+      "name": "Set grill password",
+      "description": "Sets or removes the grill's password. The same password gates commands over Bluetooth and over the network, and Home Assistant's copy is updated at the same time so the two cannot drift apart.",
+      "fields": {
+        "device_id": {
+          "name": "Grill",
+          "description": "The PitBoss grill to change."
+        },
+        "password": {
+          "name": "Password",
+          "description": "The new password. Leave empty to remove it, which leaves the grill accepting commands from anyone who can reach it. Note the app has its own reset procedure for a forgotten password; removing it here works by setting an empty one, which the firmware treats as no password."
+        }
+      }
+    }
+  }
 }
