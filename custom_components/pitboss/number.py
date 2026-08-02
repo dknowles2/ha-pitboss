@@ -37,14 +37,12 @@ class PitBossNumberEntityDescription(NumberEntityDescription):
 
 PROBE_1_DESCRIPTION = PitBossNumberEntityDescription(
     key="p1Target",
-    name="Probe 1 Target",
     probe_number=1,
     set_fn=lambda api: api.set_probe_temperature,
     matching_probe_key="p1Temp",
 )
 PROBE_2_DESCRIPTION = PitBossNumberEntityDescription(
     key="p2Target",
-    name="Probe 2 Target",
     probe_number=2,
     set_fn=lambda api: api.set_probe_2_temperature,
     matching_probe_key="p2Temp",

@@ -36,22 +36,18 @@ class ProbeSensorEntityDescription(SensorEntityDescription):
 PROBE_ENTITY_DESCRIPTIONS = (
     ProbeSensorEntityDescription(
         key="p1Temp",
-        name="Probe 1",
         probe_number=1,
     ),
     ProbeSensorEntityDescription(
         key="p2Temp",
-        name="Probe 2",
         probe_number=2,
     ),
     ProbeSensorEntityDescription(
         key="p3Temp",
-        name="Probe 3",
         probe_number=3,
     ),
     ProbeSensorEntityDescription(
         key="p4Temp",
-        name="Probe 4",
         probe_number=4,
     ),
 )

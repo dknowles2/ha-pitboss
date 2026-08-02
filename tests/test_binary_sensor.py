@@ -11,7 +11,7 @@ from custom_components.pitboss.binary_sensor import (
     PROBE_ERROR_KEYS,
     BinarySensor,
 )
-from custom_components.pitboss.const import DOMAIN, probe_label
+from custom_components.pitboss.const import DOMAIN
 from custom_components.pitboss.coordinator import PitBossDataUpdateCoordinator
 
 pytestmark = pytest.mark.parametrize("model", ["PBV4PS2"])
@@ -21,17 +21,24 @@ def _entity_id(name: str) -> str:
     return f"binary_sensor.mygrill_{name.lower().replace(' ', '_')}"
 
 
+# Spelled out rather than computed with `probe_label`, so that a wrong label
+# is a test failure instead of a quietly updated expectation.
+PROBE_ERROR_NAMES = {"err1": "MPC error", "err2": "P2 error", "err3": "P3 error"}
+
+
 async def test_creates_all_entities(
     hass: HomeAssistant,
     mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
 ) -> None:
     await mock_add_config_entry()
     for description in ENTITY_DESCRIPTIONS:
-        assert isinstance(description.name, str)
-        name = description.name
-        # The probe error sensors are renamed after the physical port.
-        if (probe_number := PROBE_ERROR_KEYS.get(description.key)) is not None:
-            name = f"{probe_label(True, probe_number)} error"
+        # The probe error sensors carry no description name: the entity sets
+        # `_attr_name` from the port label, which takes precedence anyway.
+        if description.key in PROBE_ERROR_KEYS:
+            name = PROBE_ERROR_NAMES[description.key]
+        else:
+            assert isinstance(description.name, str)
+            name = description.name
         entity_id = _entity_id(name)
         assert hass.states.get(entity_id) is not None, entity_id
 

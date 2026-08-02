@@ -25,8 +25,8 @@ async def test_probe_sensors_enabled_by_meat_probes(
     await mock_add_config_entry()
     registry = er.async_get(hass)
     assert hass.states.get("sensor.mygrill_mpc") is not None
-    assert hass.states.get("sensor.mygrill_mp1") is not None
-    assert hass.states.get("sensor.mygrill_mp2") is None
+    assert hass.states.get("sensor.mygrill_p2") is not None
+    assert hass.states.get("sensor.mygrill_p3") is None
     assert hass.states.get("sensor.mygrill_probe_4") is None
     entity_id = registry.async_get_entity_id("sensor", DOMAIN, "probe3_mygrillid")
     assert entity_id is not None
@@ -185,7 +185,7 @@ async def test_probes_keep_plain_numbering_without_mpc(
     hass: HomeAssistant,
     mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
 ) -> None:
-    """Only grills with a control port get the MPC/MP1 naming."""
+    """Only grills with a control port get the MPC/P2 naming."""
     await mock_add_config_entry()
     assert hass.states.get("sensor.mygrill_probe_1") is not None
     assert hass.states.get("sensor.mygrill_mpc") is None

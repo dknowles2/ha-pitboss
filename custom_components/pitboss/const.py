@@ -24,13 +24,19 @@ DEFAULT_PROBE_CELSIUS_STEP = 1
 
 
 def probe_label(has_mpc: bool, probe_number: int) -> str:
-    """The label the controller prints next to a probe port.
+    """The label the vendor's own app prints next to a probe port.
 
-    Grills with a meat probe control port label their ports MPC, MP1, MP2 and
-    so on -- the control probe comes first, and the numbered ones start after
-    it. Matching that avoids an off-by-one between what the panel says and
-    what Home Assistant shows. Everything else just counts from 1.
+    Taken from `getProbeLabel` in the Pit Boss Android app (2.10.3), not
+    inferred: on a grill with a control port, protocol probe 1 is that port
+    and the rest keep their protocol number.
+
+    The app's `isMpcProbe(n, settings)` is `settings.hasMpc === true &&
+    n === 1`, so probe 1 -- and only probe 1 -- is the control probe. Its
+    label is `mpcType.toUpperCase()`, defaulting to `MPC`. Every other probe
+    falls through to `"P" + n`, which is why the numbering does not shift.
+
+    Grills without a control port keep the name they have today.
     """
     if not has_mpc:
         return f"Probe {probe_number}"
-    return "MPC" if probe_number == 1 else f"MP{probe_number - 1}"
+    return "MPC" if probe_number == 1 else f"P{probe_number}"

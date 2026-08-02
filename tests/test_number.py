@@ -18,7 +18,7 @@ async def test_only_probe_1_entity_created(
 ) -> None:
     await mock_add_config_entry()
     assert hass.states.get("number.mygrill_mpc_target") is not None
-    assert hass.states.get("number.mygrill_mp1_target") is None
+    assert hass.states.get("number.mygrill_p2_target") is None
 
 
 @pytest.mark.parametrize("model", ["PB1150PS3"])

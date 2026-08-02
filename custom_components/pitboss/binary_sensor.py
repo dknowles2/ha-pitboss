@@ -45,17 +45,14 @@ class PBBinarySensorEntityDescription(BinarySensorEntityDescription):
 ENTITY_DESCRIPTIONS = (
     PBBinarySensorEntityDescription(
         key="err1",
-        name="Probe 1 error",
         icon="mdi:thermometer-alert",
     ),
     PBBinarySensorEntityDescription(
         key="err2",
-        name="Probe 2 error",
         icon="mdi:thermometer-alert",
     ),
     PBBinarySensorEntityDescription(
         key="err3",
-        name="Probe 3 error",
         icon="mdi:thermometer-alert",
     ),
     PBBinarySensorEntityDescription(
@@ -144,7 +141,7 @@ class BinarySensor(BaseEntity, BinarySensorEntity):
         self.entity_description = entity_description
         self._attr_unique_id = f"{entity_description.key}_{entry_unique_id}"
         # Name these after the physical port too, so a grill with an MPC does
-        # not report an "MP1 error" as "Probe 1 error".
+        # not report a "P2 error" as "Probe 2 error".
         probe_number = PROBE_ERROR_KEYS.get(entity_description.key)
         if probe_number is not None:
             self._attr_name = f"{probe_label(coordinator.has_mpc, probe_number)} error"
