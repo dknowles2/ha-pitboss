@@ -96,9 +96,13 @@ async def test_unavailable_when_disconnected(
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     coordinator.async_set_updated_data({"lightState": True})
     await hass.async_block_till_done()
-    assert hass.states.get(ENTITY_ID).state == "on"
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.state == "on"
 
     mock_pitboss.is_connected.return_value = False
     coordinator.async_set_updated_data({"lightState": True})
     await hass.async_block_till_done()
-    assert hass.states.get(ENTITY_ID).state == "unavailable"
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.state == "unavailable"
