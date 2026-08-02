@@ -27,7 +27,7 @@ async def test_probe_sensors_enabled_by_meat_probes(
     assert hass.states.get("sensor.mygrill_mpc") is not None
     assert hass.states.get("sensor.mygrill_p2") is not None
     assert hass.states.get("sensor.mygrill_p3") is None
-    assert hass.states.get("sensor.mygrill_probe_4") is None
+    assert hass.states.get("sensor.mygrill_p4") is None
     entity_id = registry.async_get_entity_id("sensor", DOMAIN, "probe3_mygrillid")
     assert entity_id is not None
     entry = registry.async_get(entity_id)
