@@ -35,6 +35,8 @@ class PBBinarySensorEntityDescription(BinarySensorEntityDescription):
         "motorErr",
         "noPellets",
         "motorState",
+        "fanState",
+        "hotState",
     ]
     device_class: BinarySensorDeviceClass | None = BinarySensorDeviceClass.PROBLEM
     entity_category: EntityCategory | None = EntityCategory.DIAGNOSTIC
@@ -92,6 +94,20 @@ ENTITY_DESCRIPTIONS = (
         device_class=BinarySensorDeviceClass.RUNNING,
         entity_category=None,
         icon="mdi:filter-cog",
+    ),
+    PBBinarySensorEntityDescription(
+        key="fanState",
+        name="Fan",
+        device_class=BinarySensorDeviceClass.RUNNING,
+        entity_category=None,
+        icon="mdi:fan",
+    ),
+    PBBinarySensorEntityDescription(
+        key="hotState",
+        name="Igniter",
+        device_class=BinarySensorDeviceClass.RUNNING,
+        entity_category=None,
+        icon="mdi:fire",
     ),
 )
 
