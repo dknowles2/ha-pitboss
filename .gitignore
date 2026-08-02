@@ -26,3 +26,6 @@ tts
 scenes.yaml
 scripts.yaml
 secrets.yaml
+# Claude Code scratch state; skills under .claude/skills are tracked.
+.claude/worktrees/
+.claude/settings.local.json
