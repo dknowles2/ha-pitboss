@@ -40,7 +40,10 @@ class GrillLight(BaseEntity, LightEntity):
 
     @property
     def available(self) -> bool:
-        return bool(self.coordinator.data)
+        # Deferring to BaseEntity also checks the connection. Without that,
+        # the light kept reporting its last known state after the grill went
+        # away, unlike every other platform.
+        return super().available
 
     @property
     def is_on(self) -> bool | None:
