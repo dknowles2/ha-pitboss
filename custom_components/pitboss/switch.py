@@ -47,9 +47,13 @@ class BaseSwitchEntity(BaseEntity, SwitchEntity):
 
     @property
     def available(self) -> bool:
-        """Return if the switch is available."""
-        if data := self.coordinator.data:
-            return bool(data.get("moduleIsOn", True)) and super().available
+        """Return if the switch is available.
+
+        Deliberately not gated on `moduleIsOn`. For the power switch that
+        gate was self-referential -- it hid the entity on exactly the state
+        the entity exists to report -- so it could never show `off`, and an
+        automation waiting for the grill to go off never saw it happen.
+        """
         return super().available
 
 
