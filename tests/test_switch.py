@@ -50,14 +50,15 @@ async def test_is_on_and_availability(
 
     coordinator.async_set_updated_data({"moduleIsOn": False, "primeState": False})
     await hass.async_block_till_done()
-    # All switches are unavailable when the module (grill) is off, since
-    # availability is gated on the shared "moduleIsOn" key.
+    # Switches stay available and report `off` when the grill is off, so an
+    # automation can trigger on the transition rather than on the entity
+    # disappearing.
     power_state = hass.states.get("switch.mygrill_module_power")
     prime_state = hass.states.get("switch.mygrill_prime")
     assert power_state is not None
     assert prime_state is not None
-    assert prime_state.state == "unavailable"
-    assert power_state.state == "unavailable"
+    assert power_state.state == "off"
+    assert prime_state.state == "off"
 
 
 @pytest.mark.parametrize("model", ["PBV4PS2"])
@@ -134,3 +135,46 @@ async def test_is_on_none_without_data(
     await mock_add_config_entry()
     entity = get_entity(hass, "switch", "switch.mygrill_module_power", PowerSwitch)
     assert entity.is_on is None
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_the_power_switch_can_report_off(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """It gates on the key it reports, so the old gate hid it to say `off`."""
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+
+    coordinator.async_set_updated_data({"moduleIsOn": True})
+    await hass.async_block_till_done()
+    state = hass.states.get("switch.mygrill_module_power")
+    assert state is not None
+    assert state.state == "on"
+
+    coordinator.async_set_updated_data({"moduleIsOn": False})
+    await hass.async_block_till_done()
+    state = hass.states.get("switch.mygrill_module_power")
+    assert state is not None
+    assert state.state == "off"
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_switches_still_go_unavailable_when_disconnected(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """Dropping the `moduleIsOn` gate must not drop the connection one."""
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data({"moduleIsOn": True})
+    await hass.async_block_till_done()
+
+    mock_pitboss.is_connected.return_value = False
+    coordinator.async_set_updated_data({"moduleIsOn": True})
+    await hass.async_block_till_done()
+
+    state = hass.states.get("switch.mygrill_module_power")
+    assert state is not None
+    assert state.state == "unavailable"
