@@ -118,8 +118,10 @@ class GrillClimate(BaseEntity, ClimateEntity):
 
     async def async_turn_off(self) -> None:
         """Turn off the grill."""
+        # Deliberately does not touch the setpoint. It is the user's
+        # setting, it has no effect while the grill is off, and it is what
+        # the grill will use next time it is lit.
         await self.coordinator.api.turn_grill_off()
-        await self.async_set_temperature(temperature=self.coordinator.api.spec.min_temp)
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set the HVAC mode."""
