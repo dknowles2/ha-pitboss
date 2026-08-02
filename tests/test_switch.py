@@ -94,7 +94,8 @@ async def test_power_switch_turn_off(
         blocking=True,
     )
     mock_pitboss.turn_grill_off.assert_awaited_once()
-    mock_pitboss.set_grill_temperature.assert_awaited_once_with(temp=130)
+    # The setpoint belongs to the user; turning off must not rewrite it.
+    mock_pitboss.set_grill_temperature.assert_not_awaited()
 
 
 @pytest.mark.parametrize("model", ["PBV4PS2"])

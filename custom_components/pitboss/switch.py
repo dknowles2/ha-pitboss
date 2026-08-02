@@ -13,7 +13,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DEFAULT_MIN_TEMP, DOMAIN, LOGGER
+from .const import DOMAIN, LOGGER
 from .coordinator import PitBossDataUpdateCoordinator
 from .entity import BaseEntity
 
@@ -68,10 +68,8 @@ class PowerSwitch(BaseSwitchEntity):
 
     async def async_turn_off(self, **_: Any) -> None:
         """Turn off the switch."""
+        # See GrillClimate.async_turn_off: the setpoint is left alone.
         await self.coordinator.api.turn_grill_off()
-        await self.coordinator.api.set_grill_temperature(
-            temp=self.coordinator.api.spec.min_temp or DEFAULT_MIN_TEMP
-        )
 
 
 class PrimerSwitch(BaseSwitchEntity):
