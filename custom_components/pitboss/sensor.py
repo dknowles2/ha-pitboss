@@ -8,7 +8,7 @@ from typing import Literal
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.components.sensor.const import SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfTemperature, UnitOfTime
+from homeassistant.const import EntityCategory, UnitOfTemperature, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -86,10 +86,12 @@ async def async_setup_entry(
     """Setup sensor platform."""
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     assert entry.unique_id is not None
-    entities: list[BaseSensorEntity] = []
+    entities: list[SensorEntity] = []
     entity_description: PBSensorEntityDescription
     for entity_description in PROBE_ENTITY_DESCRIPTIONS:
         entities.append(ProbeSensor(coordinator, entry.unique_id, entity_description))
+    if coordinator.firmware_version:
+        entities.append(FirmwareSensor(coordinator, entry.unique_id))
     if coordinator.api.spec.json.get("has_recipe_functionality", False):
         for entity_description in RECIPE_ENTITY_DESCRIPTIONS:
             entities.append(
@@ -172,3 +174,29 @@ class RecipeSensor(BaseSensorEntity):
         if data := self.coordinator.data:
             return data.get("moduleIsOn", True) and super().available
         return super().available
+
+
+class FirmwareSensor(BaseEntity, SensorEntity):
+    """The firmware version running on the control board."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:chip"
+
+    def __init__(
+        self,
+        coordinator: PitBossDataUpdateCoordinator,
+        entry_unique_id: str,
+    ) -> None:
+        super().__init__(coordinator, entry_unique_id)
+        self._attr_unique_id = f"firmware_{entry_unique_id}"
+        self._attr_name = "Firmware version"
+
+    @property
+    def available(self) -> bool:
+        # Read once at setup and unchanging, so it stays readable while the
+        # grill is away rather than following the connection.
+        return self.coordinator.firmware_version is not None
+
+    @property
+    def native_value(self) -> str | None:
+        return self.coordinator.firmware_version
