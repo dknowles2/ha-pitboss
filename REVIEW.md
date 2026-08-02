@@ -127,10 +127,35 @@ survived as long as it did.
 A pytboss release is what carries protocol fixes into this repo:
 
 1. pytboss is released.
-2. Dependabot opens a `requirements.txt` bump, or bump it yourself in its own
-   PR, separate from any code that depends on it.
+2. Bump the pin in **both** files, in its own PR, separate from any code that
+   depends on it:
+
+   - `requirements.txt` — what CI installs.
+   - `custom_components/pitboss/manifest.json` — what Home Assistant installs
+     at runtime, in the `requirements` array.
+
 3. Merging that bump regenerates `docs/SUPPORTED_GRILLS.md` automatically.
+
+**Both pins, every time.** They are the whole reason a version bump can go
+wrong. Bumping only `requirements.txt` leaves CI testing one version while
+users run another, and the gap is invisible until code uses something the
+older release does not have — then every check passes and the integration
+raises `AttributeError` at setup on real installs. That happened with 2026.8.2:
+`requirements.txt` moved, `manifest.json` did not, and PR #333 was written
+against a `Grill.has_mpc` that shipped users did not have.
+
+Dependabot only opens the `requirements.txt` half, so its PRs need the
+manifest edited in before merging. When reviewing any bump, diff the two
+values against each other rather than reading either alone:
+
+```sh
+grep pytboss requirements.txt custom_components/pitboss/manifest.json
+```
 
 If a change here needs a pytboss version that isn't released yet, say so in the
 PR and merge in order — stacked PRs that depend on an unreleased library will
 fail CI in a way that looks like the change is broken.
+
+The same ordering applies to a merged-but-unreleased pytboss change: a PR that
+reads a new attribute is blocked on the release *and* on the bump landing
+first, and neither CI nor GitHub can express that. Say it in the PR.

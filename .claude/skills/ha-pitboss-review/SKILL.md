@@ -95,6 +95,24 @@ These have each produced a wrong review conclusion before.
   hand-authored diff; `update-grill-docs.yml` regenerates it when the
   `pytboss==` pin changes. A version bump belongs in its own PR.
 
+- **The pytboss pin lives in two files, and CI only reads one.** Any change
+  using a library attribute added in a recent release needs both checked,
+  because `requirements.txt` is what CI installs and
+  `custom_components/pitboss/manifest.json` is what Home Assistant installs
+  for users:
+
+  ```sh
+  grep pytboss requirements.txt custom_components/pitboss/manifest.json
+  ```
+
+  If they disagree, a change relying on the newer one passes every check and
+  raises `AttributeError` at setup on real installs. Confirm the attribute
+  exists in the version the *manifest* pins, not the one CI resolves:
+
+  ```sh
+  git -C ../pytboss show <pinned-version>:pytboss/grills.py | grep <attribute>
+  ```
+
 ## 4. Also review for
 
 Code quality and consistency, bugs, performance, security, test coverage, and
