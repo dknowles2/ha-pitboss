@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+from math import floor
 from unittest.mock import Mock
 
 import pytest
@@ -15,7 +16,10 @@ from custom_components.pitboss.coordinator import PitBossDataUpdateCoordinator
 ENTITY_ID = "climate.mygrill_grill_temperature"
 
 
-@pytest.mark.parametrize("model,want", [("PBV4PS2", 130), ("PB2180LK", 180)])
+# PB2180LK publishes no min_temp, so this used to fall back to the
+# DEFAULT_MIN_TEMP constant. Its setpoint list starts at 160, which is the
+# board's real floor, so that is what the entity reports now.
+@pytest.mark.parametrize("model,want", [("PBV4PS2", 130), ("PB2180LK", 160)])
 async def test_min_temp(
     hass: HomeAssistant,
     mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
@@ -222,3 +226,42 @@ async def test_hvac_mode_and_action_none_without_data(
     entity = get_entity(hass, "climate", ENTITY_ID, GrillClimate)
     assert entity.hvac_mode is None
     assert entity.hvac_action is None
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_bounds_come_from_the_boards_setpoints(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """Fahrenheit bounds are the first and last accepted setpoints."""
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data({"isFahrenheit": True})
+    await hass.async_block_till_done()
+
+    increments = coordinator.api.spec.temp_increments
+    assert increments
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.attributes["min_temp"] == min(increments)
+    assert state.attributes["max_temp"] == max(increments)
+    assert state.attributes["allowed_setpoints"] == [float(v) for v in increments]
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_celsius_setpoints_use_the_boards_own_conversion(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """floor((F - 32) / 1.8), matching the boards that convert in their JS."""
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data({"isFahrenheit": False})
+    await hass.async_block_till_done()
+
+    increments = coordinator.api.spec.temp_increments
+    assert increments
+    expected = [float(floor((v - 32) / 1.8)) for v in increments]
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.attributes["allowed_setpoints"] == expected

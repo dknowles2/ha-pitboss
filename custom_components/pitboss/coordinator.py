@@ -1,6 +1,9 @@
 """DataUpdateCoordinator for PitBoss."""
 
+from math import floor
+
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -32,14 +35,54 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         self.api = api
         self._api_started = False
 
+    def accepted_setpoints(self, unit: str) -> list[float]:
+        """Grill setpoints the control board honours, expressed in `unit`.
+
+        The board ignores anything that is not on this list. A couple of
+        models publish a Celsius list of their own; for everyone else it is
+        derived from the Fahrenheit one using the same conversion the boards
+        that convert in their own parsing routine use -- `floor((F - 32) /
+        1.8)` -- so the values match what the panel will show.
+        """
+        fahrenheit = self.api.spec.temp_increments or []
+        if unit != UnitOfTemperature.CELSIUS:
+            return [float(v) for v in fahrenheit]
+        raw = self.api.spec.json.get("celsius_temp_increment") or ""
+        if celsius := [int(v) for v in raw.split("/") if v.strip().isdigit()]:
+            return [float(v) for v in celsius]
+        return [float(floor((v - 32) / 1.8)) for v in fahrenheit]
+
     async def _async_setup(self) -> None:
         """Set up the coordinator."""
         await self.api.subscribe_state(self._on_state_update)
         await self._start_api()
 
+    def _merge_state(self, state: StateDict) -> StateDict:
+        """Fold a state frame onto the last known one.
+
+        The board answers with two independent frames, status (`sc_11`) and
+        temperatures (`sc_12`), and clears them as soon as it forwards a
+        command to the MCU. A read landing in that window returns one frame
+        without the other, and pytboss simply omits the missing half's keys,
+        so every entity backed by them would go unknown until the next
+        successful read.
+
+        Only *absent* keys are carried over. A key present with a null value
+        is a real reading -- an unplugged probe -- and overwrites.
+        """
+        # Copy rather than hand back the incoming dict: pytboss gives every
+        # subscriber the same StateDict instance and keeps mutating it.
+        if not self.data:
+            return state.copy()
+        if not state:
+            return self.data
+        merged = self.data.copy()
+        merged.update(state)
+        return merged
+
     async def _on_state_update(self, data: StateDict) -> None:
         self.logger.debug("Received data: %s", data)
-        self.async_set_updated_data(data)
+        self.async_set_updated_data(self._merge_state(data))
 
     async def _start_api(self) -> None:
         try:
@@ -65,7 +108,7 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         # Relying solely on push notifications means sensors can go stale after
         # a reconnect if push notifications stop being delivered.
         try:
-            return await self.api.get_state()
+            return self._merge_state(await self.api.get_state())
         except NotConnectedError as ex:
             raise UpdateFailed("Grill not connected") from ex
         except RPCError as ex:
