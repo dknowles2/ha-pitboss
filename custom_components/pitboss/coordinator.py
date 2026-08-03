@@ -6,6 +6,7 @@ from time import monotonic
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from pytboss.api import PitBoss
@@ -13,6 +14,7 @@ from pytboss.exceptions import (
     GrillUnavailable,
     NotConnectedError,
     RPCError,
+    Unauthorized,
     UnsupportedOperation,
 )
 from pytboss.grills import StateDict
@@ -234,5 +236,13 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
             return state
         except NotConnectedError as ex:
             raise UpdateFailed("Grill not connected") from ex
+        except Unauthorized as ex:
+            # The grill rejected the password rather than failing the call.
+            # Retrying cannot fix that, and on a transport where `PB.GetState`
+            # is itself password-gated it takes the whole integration down --
+            # so ask for the password instead of retrying forever.
+            raise ConfigEntryAuthFailed(
+                "The grill rejected the stored password"
+            ) from ex
         except RPCError as ex:
             raise UpdateFailed(str(ex)) from ex

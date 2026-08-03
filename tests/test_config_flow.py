@@ -225,3 +225,43 @@ async def test_reconfigure_flow_updates_entry(
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     assert entry.data[CONF_PASSWORD] == "newpw"
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_reauth_updates_the_password_and_reloads(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_pitboss: Mock,
+) -> None:
+    mock_config_entry.add_to_hass(hass)
+
+    result = await mock_config_entry.start_reauth_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reauth_confirm"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_PASSWORD: "newpassword"}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert mock_config_entry.data[CONF_PASSWORD] == "newpassword"
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_reauth_accepts_an_empty_password(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_pitboss: Mock,
+) -> None:
+    """Clearing the grill's password is supported; the firmware treats an
+    empty one as no authentication at all."""
+    mock_config_entry.add_to_hass(hass)
+
+    result = await mock_config_entry.start_reauth_flow(hass)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert mock_config_entry.data[CONF_PASSWORD] == ""

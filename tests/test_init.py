@@ -5,7 +5,7 @@ import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_DEVICE_ID, CONF_MODEL, CONF_PASSWORD, CONF_PROTOCOL
 from homeassistant.core import HomeAssistant
-from pytboss.exceptions import GrillUnavailable
+from pytboss.exceptions import GrillUnavailable, RPCError, Unauthorized
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.pitboss.const import DOMAIN, PROTOCOL_BLE, PROTOCOL_WSS
@@ -171,3 +171,59 @@ async def test_setup_entry_releases_transport_on_unexpected_error(
     mock_wss_conn.disconnect.assert_awaited_once()
     mock_pitboss.stop.assert_awaited_once()
     assert entry.entry_id not in hass.data.get(DOMAIN, {})
+
+
+async def test_a_rejected_password_asks_for_a_new_one(
+    hass: HomeAssistant, mock_pitboss: Mock, mock_wss_conn: Mock
+) -> None:
+    """Retrying cannot fix a wrong password.
+
+    On a transport where `PB.GetState` is itself password-gated a stale
+    password takes the whole integration down, so the entry goes into
+    reauth rather than retrying forever.
+    """
+    mock_pitboss.get_state.side_effect = Unauthorized("Unauthorized", 401)
+
+    entry = MockConfigEntry(
+        title="title",
+        domain=DOMAIN,
+        data={
+            CONF_DEVICE_ID: "mygrill",
+            CONF_MODEL: "PBV4PS2",
+            CONF_PASSWORD: "wrongpassword",
+            CONF_PROTOCOL: PROTOCOL_WSS,
+        },
+        unique_id="mygrillid",
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    flows = hass.config_entries.flow.async_progress()
+    assert [f["context"]["source"] for f in flows] == ["reauth"]
+
+
+async def test_other_rpc_errors_do_not_ask_for_a_password(
+    hass: HomeAssistant, mock_pitboss: Mock, mock_wss_conn: Mock
+) -> None:
+    """Only a 401 means the password is wrong."""
+    mock_pitboss.get_state.side_effect = RPCError("something else", -1)
+
+    entry = MockConfigEntry(
+        title="title",
+        domain=DOMAIN,
+        data={
+            CONF_DEVICE_ID: "mygrill",
+            CONF_MODEL: "PBV4PS2",
+            CONF_PASSWORD: "asdfasdf",
+            CONF_PROTOCOL: PROTOCOL_WSS,
+        },
+        unique_id="mygrillid",
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert hass.config_entries.flow.async_progress() == []
