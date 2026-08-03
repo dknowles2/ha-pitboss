@@ -8,11 +8,47 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
-from homeassistant.const import CONF_DEVICE_ID, CONF_MODEL, CONF_PASSWORD, CONF_PROTOCOL
+from homeassistant.const import (
+    CONF_DEVICE_ID,
+    CONF_HOST,
+    CONF_MODEL,
+    CONF_PASSWORD,
+    CONF_PROTOCOL,
+)
 from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
-from pytboss import grills
+from pytboss import grills, http
 
-from .const import ALL_PROTOCOLS, DEFAULT_PROTOCOL, DOMAIN, LOGGER
+from .const import (
+    ALL_PROTOCOLS,
+    DEFAULT_PROTOCOL,
+    DOMAIN,
+    LOGGER,
+    PROTOCOL_LOCAL,
+)
+
+
+async def _validate_local(protocol: str, host: str) -> dict[str, str] | None:
+    """Check that a local grill is actually reachable at `host`.
+
+    Attempting the connection rather than reading `http.enable` over another
+    transport: the setting only predicts whether anything is listening, and
+    at this point in the flow there is no other transport to ask over. A
+    grill with the endpoint off fails here with the same error as a wrong
+    address, which is the same thing from the user's side.
+    """
+    if protocol != PROTOCOL_LOCAL:
+        return None
+    if not host:
+        return {CONF_HOST: "host_required"}
+    conn = http.HttpConnection(host)
+    try:
+        await conn.connect()
+    except Exception:  # noqa: BLE001
+        LOGGER.debug("No grill answering RPC at %s", host)
+        return {CONF_HOST: "cannot_connect"}
+    finally:
+        await conn.disconnect()
+    return None
 
 
 def _models_on_board(control_board: str) -> list[str]:
@@ -75,13 +111,25 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Handle the more info step."""
         if user_input is not None and CONF_MODEL in user_input:
+            protocol = user_input.get(CONF_PROTOCOL, DEFAULT_PROTOCOL)
+            host = user_input.get(CONF_HOST, "").strip()
+            if errors := await _validate_local(protocol, host):
+                return self._show_more_info_form(
+                    "more_info",
+                    model=user_input[CONF_MODEL],
+                    password=user_input.get(CONF_PASSWORD, ""),
+                    protocol=protocol,
+                    host=host,
+                    errors=errors,
+                )
             return self.async_create_entry(
                 title=self._device_id,
                 data={
                     CONF_DEVICE_ID: self._device_id,
                     CONF_MODEL: user_input[CONF_MODEL],
                     CONF_PASSWORD: user_input.get(CONF_PASSWORD, ""),
-                    CONF_PROTOCOL: user_input.get(CONF_PROTOCOL, DEFAULT_PROTOCOL),
+                    CONF_PROTOCOL: protocol,
+                    CONF_HOST: host,
                 },
             )
         return await self._show_more_info_form("more_info")
@@ -92,6 +140,8 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
         model: str | vol.Undefined = vol.UNDEFINED,
         password: str | vol.Undefined = vol.UNDEFINED,
         protocol: str | vol.Undefined = DEFAULT_PROTOCOL,
+        host: str | vol.Undefined = vol.UNDEFINED,
+        errors: dict[str, str] | None = None,
     ) -> ConfigFlowResult:
         """Show the more_info form."""
         control_board = self._device_id.split("-")[0]
@@ -117,8 +167,10 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
                             options=list(ALL_PROTOCOLS), translation_key="protocol"
                         )
                     ),
+                    vol.Optional(CONF_HOST, default=host): str,
                 }
             ),
+            errors=errors,
             description_placeholders={"name": self._device_id},
         )
 
@@ -159,12 +211,24 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
         if user_input is not None and CONF_MODEL in user_input:
             await self.async_set_unique_id(self._device_id.lower())
             self._abort_if_unique_id_mismatch()
+            protocol = user_input[CONF_PROTOCOL]
+            host = user_input.get(CONF_HOST, "").strip()
+            if errors := await _validate_local(protocol, host):
+                return self._show_more_info_form(
+                    "reconfigure",
+                    model=user_input[CONF_MODEL],
+                    password=user_input.get(CONF_PASSWORD, ""),
+                    protocol=protocol,
+                    host=host,
+                    errors=errors,
+                )
             return self.async_update_reload_and_abort(
                 reconfigure_entry,
                 data_updates={
                     CONF_MODEL: user_input[CONF_MODEL],
                     CONF_PASSWORD: user_input.get(CONF_PASSWORD, ""),
-                    CONF_PROTOCOL: user_input[CONF_PROTOCOL],
+                    CONF_PROTOCOL: protocol,
+                    CONF_HOST: host,
                 },
             )
 
@@ -172,4 +236,7 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
         model = reconfigure_entry.data[CONF_MODEL]
         password = reconfigure_entry.data.get(CONF_PASSWORD, "")
         protocol = reconfigure_entry.data.get(CONF_PROTOCOL, DEFAULT_PROTOCOL)
-        return await self._show_more_info_form("reconfigure", model, password, protocol)
+        host = reconfigure_entry.data.get(CONF_HOST, "")
+        return await self._show_more_info_form(
+            "reconfigure", model, password, protocol, host
+        )

@@ -1,17 +1,24 @@
 import threading
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from bleak.backends.device import BLEDevice
 from homeassistant import config_entries
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
-from homeassistant.const import CONF_DEVICE_ID, CONF_MODEL, CONF_PASSWORD, CONF_PROTOCOL
+from homeassistant.const import (
+    CONF_DEVICE_ID,
+    CONF_HOST,
+    CONF_MODEL,
+    CONF_PASSWORD,
+    CONF_PROTOCOL,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from pytboss import grills
+from pytboss.exceptions import NotConnectedError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.pitboss.const import DOMAIN, PROTOCOL_WSS
+from custom_components.pitboss.const import DOMAIN, PROTOCOL_LOCAL, PROTOCOL_WSS
 
 
 def _bluetooth_service_info(name: str) -> BluetoothServiceInfoBleak:
@@ -83,6 +90,8 @@ async def test_user_flow_creates_entry(hass: HomeAssistant) -> None:
         CONF_MODEL: "PBV4PS2",
         CONF_PASSWORD: "hunter2",
         CONF_PROTOCOL: PROTOCOL_WSS,
+        # Stored on every entry, empty unless the local protocol is chosen.
+        CONF_HOST: "",
     }
 
 
@@ -296,3 +305,87 @@ async def test_model_list_is_built_off_the_event_loop(
 
     assert called_on, "the model list was never built"
     assert loop_thread not in called_on
+
+async def test_local_protocol_requires_a_host(hass: HomeAssistant) -> None:
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_DEVICE_ID: "PBL-ABC123"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_MODEL: "PBV4PS2", CONF_PROTOCOL: PROTOCOL_LOCAL, CONF_HOST: ""},
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {CONF_HOST: "host_required"}
+
+
+async def test_local_protocol_checks_the_grill_answers(hass: HomeAssistant) -> None:
+    """Not every grill has the local interface on, and it is per-unit.
+
+    So the address is validated by trying it rather than by trusting it.
+    """
+    with patch(
+        "custom_components.pitboss.config_flow.http.HttpConnection", autospec=True
+    ) as mock_http:
+        mock_http.return_value.connect.side_effect = NotConnectedError("nothing there")
+
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_DEVICE_ID: "PBL-ABC123"}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_MODEL: "PBV4PS2",
+                CONF_PROTOCOL: PROTOCOL_LOCAL,
+                CONF_HOST: "192.168.1.50",
+            },
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {CONF_HOST: "cannot_connect"}
+
+
+async def test_local_protocol_creates_the_entry(hass: HomeAssistant) -> None:
+    with patch(
+        "custom_components.pitboss.config_flow.http.HttpConnection", autospec=True
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_DEVICE_ID: "PBL-ABC123"}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_MODEL: "PBV4PS2",
+                CONF_PROTOCOL: PROTOCOL_LOCAL,
+                CONF_HOST: "192.168.1.50",
+            },
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_PROTOCOL] == PROTOCOL_LOCAL
+    assert result["data"][CONF_HOST] == "192.168.1.50"
+
+
+async def test_a_host_is_not_required_for_other_protocols(hass: HomeAssistant) -> None:
+    """The field is shown always but only means anything for the local one."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_DEVICE_ID: "PBL-ABC123"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_MODEL: "PBV4PS2", CONF_PROTOCOL: PROTOCOL_WSS}
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_HOST] == ""
