@@ -262,3 +262,38 @@ async def test_probes_keep_plain_numbering_without_mpc(
     await mock_add_config_entry()
     assert hass.states.get("sensor.mygrill_probe_1") is not None
     assert hass.states.get("sensor.mygrill_mpc") is None
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_a_late_firmware_read_reaches_the_device_page(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """The retry populated the sensor but not the device registry.
+
+    `device_info` is only read when the device is created, so a version that
+    arrives after setup had nowhere to go: the sensor showed it while the
+    device page stayed blank until the integration was reloaded.
+    """
+    mock_pitboss.get_firmware_version.side_effect = RuntimeError("nope")
+    entry = await mock_add_config_entry()
+
+    registry = dr.async_get(hass)
+    device = registry.async_get_device(identifiers={(DOMAIN, "mygrill")})
+    assert device is not None
+    assert device.sw_version is None
+
+    mock_pitboss.get_firmware_version.side_effect = None
+    mock_pitboss.get_firmware_version.return_value = {"firmwareVersion": "0.5.7"}
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    assert coordinator._firmware_attempted_at is not None
+    coordinator._firmware_attempted_at -= SYS_INFO_INTERVAL + 1
+    async_fire_time_changed(
+        hass, dt_util.utcnow() + STANDBY_SCAN_INTERVAL + timedelta(seconds=1)
+    )
+    await hass.async_block_till_done()
+
+    device = registry.async_get_device(identifiers={(DOMAIN, "mygrill")})
+    assert device is not None
+    assert device.sw_version == "0.5.7"
