@@ -16,7 +16,11 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_time_changed,
 )
 
-from custom_components.pitboss.const import DOMAIN, STANDBY_SCAN_INTERVAL
+from custom_components.pitboss.const import (
+    DOMAIN,
+    STANDBY_SCAN_INTERVAL,
+    SYS_INFO_INTERVAL,
+)
 from custom_components.pitboss.coordinator import PitBossDataUpdateCoordinator
 from custom_components.pitboss.sensor import ProbeSensor
 
@@ -179,14 +183,32 @@ async def test_firmware_sensor_recovers_from_a_failed_first_read(
     the integration is reloaded.
     """
     mock_pitboss.get_firmware_version.side_effect = RuntimeError("nope")
-    await mock_add_config_entry()
+    entry = await mock_add_config_entry()
 
     state = hass.states.get("sensor.mygrill_firmware_version")
     assert state is not None
     assert state.state == STATE_UNAVAILABLE
 
+    # Retries follow the diagnostics cadence, not the poll rate: a poll
+    # landing inside the gate must not ask again.
+    attempts = mock_pitboss.get_firmware_version.await_count
     mock_pitboss.get_firmware_version.side_effect = None
     mock_pitboss.get_firmware_version.return_value = {"firmwareVersion": "0.5.7"}
+    async_fire_time_changed(
+        hass, dt_util.utcnow() + STANDBY_SCAN_INTERVAL + timedelta(seconds=1)
+    )
+    await hass.async_block_till_done()
+
+    assert mock_pitboss.get_firmware_version.await_count == attempts
+    state = hass.states.get("sensor.mygrill_firmware_version")
+    assert state is not None
+    assert state.state == STATE_UNAVAILABLE
+
+    # The gate elapses (monotonic time cannot be frozen from a test, so it
+    # is aged directly) and the next poll's read succeeds.
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    assert coordinator._firmware_attempted_at is not None
+    coordinator._firmware_attempted_at -= SYS_INFO_INTERVAL + 1
     async_fire_time_changed(
         hass, dt_util.utcnow() + STANDBY_SCAN_INTERVAL + timedelta(seconds=1)
     )
