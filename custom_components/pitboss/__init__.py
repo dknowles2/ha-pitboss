@@ -136,9 +136,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
         control_board = None
 
-    pitboss = await hass.async_add_executor_job(
-        lambda: api.PitBoss(conn, model, password=password, control_board=control_board)
-    )
+    # Constructed inline: since spec resolution moved into `start()`, the
+    # constructor only assigns attributes. The executor job it ran in was a
+    # holdover from when it read the grill catalogue.
+    pitboss = api.PitBoss(conn, model, password=password, control_board=control_board)
     device_info = DeviceInfo(
         identifiers={(DOMAIN, device_id)},
         name=device_id,
