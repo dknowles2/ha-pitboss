@@ -166,11 +166,23 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         """Set up the coordinator."""
         await self.api.subscribe_state(self._on_state_update)
         await self._start_api()
+        await self._async_refresh_firmware_version()
+
+    async def _async_refresh_firmware_version(self) -> None:
+        """Fetch the firmware version until one read succeeds. Never fatal.
+
+        The version does not change outside a reload, so this is a no-op once
+        known. Retrying until then matters because the read at setup used to
+        be the only attempt: a grill that failed to answer it once had no
+        firmware sensor until the integration was reloaded.
+        """
+        if self.firmware_version is not None:
+            return
         try:
             result = await self.api.get_firmware_version()
             self.firmware_version = result.get("firmwareVersion")
         except Exception as ex:  # noqa: BLE001
-            # Cosmetic; never worth failing setup over.
+            # Cosmetic; never worth failing a refresh over.
             self.logger.debug("Could not fetch the firmware version: %s", ex)
 
     def _merge_state(self, state: StateDict) -> StateDict:
@@ -250,6 +262,7 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
             raise UpdateFailed("Grill not connected") from ex
 
         await self._async_refresh_sys_info()
+        await self._async_refresh_firmware_version()
 
         # Always fetch the current state to ensure sensors stay up-to-date.
         # Relying solely on push notifications means sensors can go stale after

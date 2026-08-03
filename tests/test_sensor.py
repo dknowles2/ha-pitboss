@@ -1,16 +1,22 @@
 from collections.abc import Awaitable, Callable
+from datetime import timedelta
 from typing import cast
 from unittest.mock import Mock
 
 import pytest
 from conftest import get_entity
+from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 from pytboss.grills import StateDict
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 
-from custom_components.pitboss.const import DOMAIN
+from custom_components.pitboss.const import DOMAIN, STANDBY_SCAN_INTERVAL
 from custom_components.pitboss.coordinator import PitBossDataUpdateCoordinator
 from custom_components.pitboss.sensor import ProbeSensor
 
@@ -135,15 +141,34 @@ async def test_firmware_version_sensor(
 
 
 @pytest.mark.parametrize("model", ["PBV4PS2"])
-async def test_no_firmware_sensor_when_the_grill_does_not_answer(
+async def test_firmware_sensor_recovers_from_a_failed_first_read(
     hass: HomeAssistant,
     mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
     mock_pitboss: Mock,
 ) -> None:
-    """A failed read must not break setup, and creates no entity."""
+    """A failed read must not break setup, and is retried until it works.
+
+    The sensor exists from the start -- merely unavailable -- because a
+    grill that is slow to answer once should not lose the entity until
+    the integration is reloaded.
+    """
     mock_pitboss.get_firmware_version.side_effect = RuntimeError("nope")
     await mock_add_config_entry()
-    assert hass.states.get("sensor.mygrill_firmware_version") is None
+
+    state = hass.states.get("sensor.mygrill_firmware_version")
+    assert state is not None
+    assert state.state == STATE_UNAVAILABLE
+
+    mock_pitboss.get_firmware_version.side_effect = None
+    mock_pitboss.get_firmware_version.return_value = {"firmwareVersion": "0.5.7"}
+    async_fire_time_changed(
+        hass, dt_util.utcnow() + STANDBY_SCAN_INTERVAL + timedelta(seconds=1)
+    )
+    await hass.async_block_till_done()
+
+    state = hass.states.get("sensor.mygrill_firmware_version")
+    assert state is not None
+    assert state.state == "0.5.7"
 
 
 @pytest.mark.parametrize("model", ["PBV4PS2"])
