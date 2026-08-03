@@ -234,3 +234,49 @@ async def test_a_target_the_grill_already_has_is_not_overwritten(
 
     mock_pitboss.set_probe_target.assert_not_awaited()
     assert coordinator.probe_target(2) == 190
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_a_target_restored_after_a_power_cycle_still_reaches_the_grill(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """The grill cycled while Home Assistant was down, and is on again.
+
+    Entities are added after the coordinator's first refresh, so by the time
+    a restored target arrives the coordinator has already seeded against an
+    empty set. Without re-arming, the target would show here and never be
+    written to the grill.
+    """
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    # First refresh: grill is on, its store was wiped by the power cycle.
+    await coordinator._async_refresh_probe_targets({"moduleIsOn": True})
+    mock_pitboss.set_probe_target.reset_mock()
+
+    # The entity now restores what we were holding before the restart.
+    coordinator.note_restored_target(2, 165)
+    await coordinator._async_refresh_probe_targets({"moduleIsOn": True})
+
+    mock_pitboss.set_probe_target.assert_awaited_once_with(2, 165)
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_a_restored_target_the_grill_already_has_is_not_rewritten(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """Re-arming must not overwrite a target set from the vendor's app."""
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    mock_pitboss.get_probe_targets.return_value = {2: 190}
+    await coordinator._async_refresh_probe_targets({"moduleIsOn": True})
+    mock_pitboss.set_probe_target.reset_mock()
+
+    coordinator.note_restored_target(2, 165)
+    await coordinator._async_refresh_probe_targets({"moduleIsOn": True})
+
+    mock_pitboss.set_probe_target.assert_not_awaited()
+    assert coordinator.probe_target(2) == 190

@@ -106,6 +106,21 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
             return
         self.probe_targets[probe_number] = temp
 
+    def note_restored_target(self, probe_number: int, temp: int) -> None:
+        """Take a target restored from a previous run.
+
+        Re-arms seeding when the grill does not already hold this probe's
+        target. Entities are added after the coordinator's first refresh, so
+        a grill that power-cycled while Home Assistant was down has already
+        been marked seeded -- against an empty set -- by the time a restored
+        value arrives. Without this the target would show in Home Assistant
+        and never reach the grill, which is the one case the restore exists
+        for.
+        """
+        self.restored_targets[probe_number] = temp
+        if probe_number not in self.probe_targets:
+            self._targets_seeded = False
+
     async def _async_refresh_probe_targets(self, state: StateDict) -> None:
         """Track the targets the grill is holding. Never fatal."""
         if not state.get("moduleIsOn"):

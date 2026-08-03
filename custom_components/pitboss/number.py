@@ -45,7 +45,9 @@ async def async_setup_entry(
     """Setup number platform."""
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     assert entry.unique_id is not None
-    probe_count = coordinator.api.spec.meat_probes or 1
+    # No model in the catalogue declares 0, but an unknown grill having no
+    # probes should mean no probe targets rather than one.
+    probe_count = coordinator.api.spec.meat_probes or 0
     entities = [
         TargetProbeTemperature(coordinator, entry.unique_id, description)
         for description in PROBE_DESCRIPTIONS
@@ -56,7 +58,12 @@ async def async_setup_entry(
 
 
 class TargetProbeTemperature(BaseEntity, RestoreNumber):
-    """PitBoss target probe temperature class."""
+    """PitBoss target probe temperature class.
+
+    Deliberately not gated on the probe being plugged in: the grill accepts a
+    target for an empty port, so it can be dialled in before the probe goes
+    into the meat.
+    """
 
     def __init__(
         self,
@@ -92,7 +99,7 @@ class TargetProbeTemperature(BaseEntity, RestoreNumber):
             value = TemperatureConverter.convert(
                 value, stored_unit, self.coordinator.grill_unit
             )
-        self.coordinator.restored_targets[probe_number] = round(value)
+        self.coordinator.note_restored_target(probe_number, round(value))
 
     @property
     def native_unit_of_measurement(self) -> str:
@@ -105,13 +112,6 @@ class TargetProbeTemperature(BaseEntity, RestoreNumber):
         if self.native_unit_of_measurement == UnitOfTemperature.FAHRENHEIT:
             return DEFAULT_PROBE_FAHRENHEIT_STEP
         return DEFAULT_PROBE_CELSIUS_STEP
-
-    @property
-    def available(self) -> bool:
-        # Deliberately not gated on the probe being plugged in: the grill
-        # accepts a target for an empty port, so it can be dialled in before
-        # the probe goes into the meat.
-        return super().available
 
     @property
     def native_value(self) -> float | None:
