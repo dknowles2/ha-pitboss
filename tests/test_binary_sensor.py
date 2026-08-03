@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from unittest.mock import Mock
 
 import pytest
@@ -190,5 +191,48 @@ async def test_target_reached_uses_a_target_the_grill_does_not_report(
     coordinator.async_set_updated_data({"p2Temp": 166})
     await hass.async_block_till_done()
     state = hass.states.get(_entity_id("P2 target reached"))
+    assert state is not None
+    assert state.state == "on"
+
+
+async def test_meat_probe_control_sensor(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """PBV4PS2 has a control port, so it reads `on`."""
+    await mock_add_config_entry()
+    state = hass.states.get(_entity_id("Meat probe control"))
+    assert state is not None
+    assert state.state == "on"
+
+
+async def test_meat_probe_control_sensor_without_a_control_port(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """The module parametrizes `model`, so the spec is swapped instead."""
+    mock_pitboss.spec = replace(mock_pitboss.spec, has_mpc=False)
+
+    await mock_add_config_entry()
+
+    state = hass.states.get(_entity_id("Meat probe control"))
+    assert state is not None
+    assert state.state == "off"
+
+
+async def test_meat_probe_control_stays_available_while_disconnected(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """It answers a question about the model, not about the connection."""
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    mock_pitboss.is_connected.return_value = False
+    coordinator.async_set_updated_data({})
+    await hass.async_block_till_done()
+
+    state = hass.states.get(_entity_id("Meat probe control"))
     assert state is not None
     assert state.state == "on"

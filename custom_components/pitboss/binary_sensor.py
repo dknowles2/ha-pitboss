@@ -123,6 +123,7 @@ async def async_setup_entry(
     for entity_description in ENTITY_DESCRIPTIONS:
         entities.append(BinarySensor(coordinator, entry.unique_id, entity_description))
     entities.append(ConnectivitySensor(coordinator, entry.unique_id))
+    entities.append(MeatProbeControlSensor(coordinator, entry.unique_id))
     for probe_number in range(1, (coordinator.api.spec.meat_probes or 0) + 1):
         entities.append(
             ProbeTargetReachedSensor(coordinator, entry.unique_id, probe_number)
@@ -184,6 +185,39 @@ class ConnectivitySensor(BaseEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool:
         return bool(self.coordinator.api) and self.coordinator.api.is_connected()
+
+
+class MeatProbeControlSensor(BaseEntity, BinarySensorEntity):
+    """Whether the grill has a meat probe control port.
+
+    A static property of the model, from the vendor's catalogue. The port
+    naming already says it to a person reading the dashboard -- probe 1 is
+    called MPC -- but an automation cannot read an entity's name, and
+    "does this grill act on a probe at all" is the question behind most of
+    what one would do with these entities.
+
+    Always available: the answer does not depend on the grill being reachable.
+    """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:thermometer-check"
+
+    def __init__(
+        self,
+        coordinator: PitBossDataUpdateCoordinator,
+        entry_unique_id: str,
+    ) -> None:
+        super().__init__(coordinator, entry_unique_id)
+        self._attr_unique_id = f"has_mpc_{entry_unique_id}"
+        self._attr_name = "Meat probe control"
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    @property
+    def is_on(self) -> bool:
+        return self.coordinator.has_mpc
 
 
 class ProbeTargetReachedSensor(BaseEntity, BinarySensorEntity):
