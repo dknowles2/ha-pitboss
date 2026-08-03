@@ -23,7 +23,8 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.typing import ConfigType
-from pytboss import api, ble, wss
+from pytboss import api, ble, grills, wss
+from pytboss.exceptions import InvalidGrill
 from pytboss.transport import Transport
 
 from .const import (
@@ -116,8 +117,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     else:
         raise ValueError(f"Unknown protocol: {protocol}")
 
+    # The prefix the grill advertises names its control board, and a few
+    # models were sold on two board generations that do not parse alike.
+    # Resolving by model name alone picks the board the vendor lists most
+    # recently, which is the wrong one for every grill on the older board.
+    control_board: str | None = device_id.split("-")[0]
+    try:
+        await hass.async_add_executor_job(grills.get_grill, model, control_board)
+    except InvalidGrill:
+        # An entry from the era of board remapping can hold a model that was
+        # never sold under the advertised prefix. Resolving by name alone is
+        # what every release so far did, so those keep working unchanged.
+        LOGGER.warning(
+            "Model %s has no variant on control board %s; "
+            "using the vendor's latest listing for it",
+            model,
+            control_board,
+        )
+        control_board = None
+
     pitboss = await hass.async_add_executor_job(
-        lambda: api.PitBoss(conn, model, password=password)
+        lambda: api.PitBoss(conn, model, password=password, control_board=control_board)
     )
     device_info = DeviceInfo(
         identifiers={(DOMAIN, device_id)},
