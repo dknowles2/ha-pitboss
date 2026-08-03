@@ -56,6 +56,10 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         # Latest Sys.GetInfo payload from the control board.
         self.sys_info: dict = {}
         self._sys_info_at = 0.0
+        # When the firmware version was last asked for. `None` rather than
+        # 0.0 so the first attempt is never gated: `monotonic()` can be
+        # small at process start, which 0.0 would read as "just tried".
+        self._firmware_attempted_at: float | None = None
         # What the grill is holding, and what we are holding for it. See
         # `probe_target` for why both exist.
         self.probe_targets: dict[int, int] = {}
@@ -175,9 +179,21 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         known. Retrying until then matters because the read at setup used to
         be the only attempt: a grill that failed to answer it once had no
         firmware sensor until the integration was reloaded.
+
+        Retries are gated to the diagnostics cadence, like the system info
+        read above. Gating on success alone meant a grill that persistently
+        failed this read was asked again on every poll -- every ten seconds
+        for as long as it was lit, once the poll interval followed the grill.
         """
         if self.firmware_version is not None:
             return
+        now = monotonic()
+        if (
+            self._firmware_attempted_at is not None
+            and now - self._firmware_attempted_at < SYS_INFO_INTERVAL
+        ):
+            return
+        self._firmware_attempted_at = now
         try:
             result = await self.api.get_firmware_version()
             self.firmware_version = result.get("firmwareVersion")
