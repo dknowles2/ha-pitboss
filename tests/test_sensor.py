@@ -55,6 +55,24 @@ async def test_recipe_sensors_created_when_supported(
     assert hass.states.get("sensor.mygrill_recipe_step") is not None
 
 
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_recipe_time_records_no_statistics(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """A countdown is not a measurement; statistics of it mean nothing."""
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data(
+        cast(StateDict, {"moduleIsOn": True, "recipeTime": 90})
+    )
+    await hass.async_block_till_done()
+    state = hass.states.get("sensor.mygrill_recipe_time")
+    assert state is not None
+    assert state.state == "90"
+    assert "state_class" not in state.attributes
+
+
 @pytest.mark.parametrize("model", ["PB2180LK"])
 async def test_recipe_sensors_absent_when_unsupported(
     hass: HomeAssistant,
@@ -113,6 +131,14 @@ async def test_recipe_sensor_availability(
     state = hass.states.get("sensor.mygrill_recipe_step")
     assert state is not None
     assert state.state == "2"
+
+    # A frame that carries no moduleIsOn reads as off, the same default the
+    # power switch applies to the same key.
+    coordinator.async_set_updated_data(cast(StateDict, {"recipeStep": 2}))
+    await hass.async_block_till_done()
+    state = hass.states.get("sensor.mygrill_recipe_step")
+    assert state is not None
+    assert state.state == "unavailable"
 
 
 @pytest.mark.parametrize("model", ["PBV4PS2"])

@@ -58,7 +58,7 @@ class RecipeSensorEntityDescription(SensorEntityDescription):
     """Describes a PitBoss recipe sensor."""
 
     key: Literal["recipeTime", "recipeStep"]
-    state_class: SensorStateClass = SensorStateClass.MEASUREMENT
+    state_class: SensorStateClass | None = SensorStateClass.MEASUREMENT
 
 
 RECIPE_ENTITY_DESCRIPTIONS = (
@@ -68,6 +68,9 @@ RECIPE_ENTITY_DESCRIPTIONS = (
         icon="mdi:clock-outline",
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=UnitOfTime.SECONDS,
+        # A countdown, not a measurement: long-term statistics of "seconds
+        # remaining" mean nothing.
+        state_class=None,
     ),
     RecipeSensorEntityDescription(
         key="recipeStep",
@@ -174,8 +177,10 @@ class RecipeSensor(BaseSensorEntity):
 
     @property
     def available(self) -> bool:
+        # Missing defaults to off, matching how the power switch reads the
+        # same key; this class alone assumed on.
         if data := self.coordinator.data:
-            return data.get("moduleIsOn", True) and super().available
+            return data.get("moduleIsOn", False) and super().available
         return super().available
 
 
