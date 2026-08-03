@@ -6,6 +6,7 @@ from homeassistant.const import CONF_PASSWORD
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import device_registry as dr
+from pytboss.exceptions import Unauthorized
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.pitboss.const import DOMAIN
@@ -106,3 +107,32 @@ async def test_a_failed_change_leaves_the_entry_alone(
             blocking=True,
         )
     assert entry.data[CONF_PASSWORD] == "asdfasdf"
+
+
+async def test_a_rejected_password_offers_reauth(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """Changing the password is authenticated with the current one.
+
+    So a rejection means the one Home Assistant holds is not the grill's,
+    which is the condition the coordinator opens a reauth flow for. Without
+    one the user gets an error toast and no way to correct it.
+    """
+    entry = await mock_add_config_entry()
+    mock_pitboss.is_connected.return_value = True
+    mock_pitboss.set_grill_password.side_effect = Unauthorized("Unauthorized", 401)
+
+    with pytest.raises(HomeAssistantError):
+        await hass.services.async_call(
+            DOMAIN,
+            "set_grill_password",
+            {"device_id": _device_id(hass), CONF_PASSWORD: "hunter2"},
+            blocking=True,
+        )
+    await hass.async_block_till_done()
+
+    assert entry.data[CONF_PASSWORD] == "asdfasdf"
+    flows = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+    assert [f for f in flows if f["context"].get("source") == "reauth"]

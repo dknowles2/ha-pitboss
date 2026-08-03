@@ -319,3 +319,31 @@ async def test_a_partial_frame_does_not_change_the_interval(
     await coordinator._on_state_update({"grillTemp": 105})
 
     assert coordinator.update_interval == ACTIVE_SCAN_INTERVAL
+
+
+async def test_setup_fails_permanently_for_a_model_not_in_the_catalogue(
+    hass: HomeAssistant,
+    model: str,
+) -> None:
+    """Retrying cannot introduce a model to the catalogue.
+
+    The fallback to resolving by name alone is for entries whose prefix and
+    model do not pair. When that fails too the model itself is unknown, and
+    `api.start()` would raise the same thing on every retry -- so the entry
+    has to stop and ask, rather than back off forever.
+    """
+    entry = MockConfigEntry(
+        title="title",
+        domain=DOMAIN,
+        data={
+            CONF_DEVICE_ID: "mygrill",
+            CONF_MODEL: "NO-SUCH-MODEL",
+            CONF_PASSWORD: "asdfasdf",
+            CONF_PROTOCOL: PROTOCOL_WSS,
+        },
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_ERROR
