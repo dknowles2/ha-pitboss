@@ -51,3 +51,11 @@ def probe_label(has_mpc: bool, probe_number: int) -> str:
     if not has_mpc:
         return f"Probe {probe_number}"
     return "MPC" if probe_number == 1 else f"P{probe_number}"
+
+
+MCU_SETTLE_SECONDS = 6
+"""Seconds to show a value we asked for before believing the grill again.
+
+The board wipes its cached status the moment it forwards a command to the
+MCU, so the next poll still carries the old value and an entity that read it
+straight back would appear to snap to the previous setting."""

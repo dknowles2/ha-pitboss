@@ -7,8 +7,9 @@ from homeassistant.components.number import NumberEntityDescription, RestoreNumb
 from homeassistant.components.number.const import NumberDeviceClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
-from homeassistant.core import HomeAssistant
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_call_later
 from homeassistant.util.unit_conversion import TemperatureConverter
 
 from .const import (
@@ -17,6 +18,7 @@ from .const import (
     DEFAULT_PROBE_MAX_TEMP,
     DEFAULT_PROBE_MIN_TEMP,
     DOMAIN,
+    MCU_SETTLE_SECONDS,
     probe_label,
 )
 from .coordinator import PitBossDataUpdateCoordinator
@@ -76,6 +78,8 @@ class TargetProbeTemperature(BaseEntity, RestoreNumber):
         self._attr_unique_id = f"{entity_description.key}_{entry_unique_id}"
         label = probe_label(coordinator.has_mpc, entity_description.probe_number)
         self._attr_name = f"{label} target"
+        self._pending_value: int | None = None
+        self._cancel_settle: CALLBACK_TYPE | None = None
 
     async def async_added_to_hass(self) -> None:
         """Restore the target we last set for this probe.
@@ -85,6 +89,9 @@ class TargetProbeTemperature(BaseEntity, RestoreNumber):
         restart. Anything the grill is holding wins over the restored value.
         """
         await super().async_added_to_hass()
+        # Registered once rather than per set: `async_on_remove` only appends,
+        # so re-registering would grow the list for the life of the entity.
+        self.async_on_remove(self._cancel_pending_settle)
         probe_number = self.entity_description.probe_number
         if self.coordinator.probe_target(probe_number) is not None:
             return
@@ -100,6 +107,12 @@ class TargetProbeTemperature(BaseEntity, RestoreNumber):
                 value, stored_unit, self.coordinator.grill_unit
             )
         self.coordinator.note_restored_target(probe_number, round(value))
+
+    @callback
+    def _cancel_pending_settle(self) -> None:
+        if self._cancel_settle is not None:
+            self._cancel_settle()
+            self._cancel_settle = None
 
     @property
     def native_unit_of_measurement(self) -> str:
@@ -119,15 +132,53 @@ class TargetProbeTemperature(BaseEntity, RestoreNumber):
 
         Deliberately an int: coercing to float would render the state as
         "165.0" where it has always been "165".
+
+        Shows what we asked for until the grill confirms it. `probe_target`
+        puts the board's own `pNTarget` first, and that is still the previous
+        value for as long as it takes the board to report the new one, so
+        reading it straight back would make the slider snap to the old
+        setting.
         """
+        if self._pending_value is not None:
+            return self._pending_value
         return self.coordinator.probe_target(self.entity_description.probe_number)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        if self._pending_value is not None and (
+            self.coordinator.probe_target(self.entity_description.probe_number)
+            == self._pending_value
+        ):
+            self._pending_value = None
+        super()._handle_coordinator_update()
 
     async def async_set_native_value(self, value: float) -> None:
         """Set the target, by whichever route this probe supports."""
+        target = round(value)
         await self.coordinator.async_set_probe_target(
-            self.entity_description.probe_number, round(value)
+            self.entity_description.probe_number, target
         )
+        self._pending_value = target
+        # Siblings read the coordinator too -- the target-reached sensor
+        # follows the grill rather than this pending value.
         self.coordinator.async_update_listeners()
+        # A second set inside the window replaces the timer rather than
+        # queueing another.
+        self._cancel_pending_settle()
+        self._cancel_settle = async_call_later(
+            self.hass, MCU_SETTLE_SECONDS, self._async_confirm
+        )
+
+    async def _async_confirm(self, _now) -> None:
+        self._cancel_settle = None
+        await self.coordinator.async_request_refresh()
+        # One settle window is all the pending value is for. If the refresh
+        # confirmed it, `_handle_coordinator_update` has already cleared it;
+        # if the grill did not take it, follow the grill rather than assert a
+        # value it will never report.
+        if self._pending_value is not None:
+            self._pending_value = None
+            self.async_write_ha_state()
 
     @property
     def native_min_value(self) -> float:
