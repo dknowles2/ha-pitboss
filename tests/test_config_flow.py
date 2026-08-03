@@ -1,3 +1,4 @@
+import threading
 from unittest.mock import Mock
 
 import pytest
@@ -265,3 +266,33 @@ async def test_reauth_accepts_an_empty_password(
 
     assert result["type"] is FlowResultType.ABORT
     assert mock_config_entry.data[CONF_PASSWORD] == ""
+
+
+async def test_model_list_is_built_off_the_event_loop(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reading the model list parses ~180 kB of JSON off disk.
+
+    `async_setup_entry` already hands the equivalent call to the executor.
+    This is the path that pays the cost first, though: on a fresh install
+    there is no entry yet whose setup could have warmed the cache.
+    """
+    loop_thread = threading.current_thread()
+    called_on: list[threading.Thread] = []
+    real_get_grills = grills.get_grills
+
+    def recording_get_grills(*args, **kwargs):
+        called_on.append(threading.current_thread())
+        return real_get_grills(*args, **kwargs)
+
+    monkeypatch.setattr(grills, "get_grills", recording_get_grills)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_DEVICE_ID: "PBL-1234"}
+    )
+
+    assert called_on, "the model list was never built"
+    assert loop_thread not in called_on

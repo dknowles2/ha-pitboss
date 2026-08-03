@@ -15,6 +15,14 @@ from pytboss import grills
 from .const import ALL_PROTOCOLS, DEFAULT_PROTOCOL, DOMAIN, LOGGER
 
 
+def _models_on_board(control_board: str) -> list[str]:
+    """Model names this control board is sold under.
+
+    A module-level function so it can be handed to the executor.
+    """
+    return [g.name for g in grills.get_grills(control_board=control_board)]
+
+
 class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
     """Config flow for PitBoss."""
 
@@ -76,9 +84,9 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
                     CONF_PROTOCOL: user_input.get(CONF_PROTOCOL, DEFAULT_PROTOCOL),
                 },
             )
-        return self._show_more_info_form("more_info")
+        return await self._show_more_info_form("more_info")
 
-    def _show_more_info_form(
+    async def _show_more_info_form(
         self,
         step_id: str,
         model: str | vol.Undefined = vol.UNDEFINED,
@@ -87,7 +95,12 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Show the more_info form."""
         control_board = self._device_id.split("-")[0]
-        models = [g.name for g in grills.get_grills(control_board=control_board)]
+        # In the executor, as `async_setup_entry` already does for
+        # `get_grill`: the first of these reads and parses `grills.json`,
+        # which is ~180 kB. On a fresh install this is what pays that cost,
+        # since there is no entry yet whose setup could have warmed the
+        # cache.
+        models = await self.hass.async_add_executor_job(_models_on_board, control_board)
         if not models:
             return self.async_abort(
                 reason="unknown_grill",
@@ -159,4 +172,4 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
         model = reconfigure_entry.data[CONF_MODEL]
         password = reconfigure_entry.data.get(CONF_PASSWORD, "")
         protocol = reconfigure_entry.data.get(CONF_PROTOCOL, DEFAULT_PROTOCOL)
-        return self._show_more_info_form("reconfigure", model, password, protocol)
+        return await self._show_more_info_form("reconfigure", model, password, protocol)
