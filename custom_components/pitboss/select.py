@@ -5,7 +5,7 @@ from __future__ import annotations
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_call_later
 
@@ -59,6 +59,21 @@ class GrillTemperatureUnitSelect(BaseEntity, SelectEntity):
         # attribute and a mypy override error.
         self._attr_options = [UNIT_CELSIUS, UNIT_FAHRENHEIT]
         self._pending_option: str | None = None
+        self._cancel_settle: CALLBACK_TYPE | None = None
+
+    async def async_added_to_hass(self) -> None:
+        """Register the one removal callback this entity needs."""
+        await super().async_added_to_hass()
+        # Registered once rather than per selection: `async_on_remove` only
+        # appends, so re-registering would grow the list for the life of the
+        # entity. This cancels whichever timer is current.
+        self.async_on_remove(self._cancel_pending_settle)
+
+    @callback
+    def _cancel_pending_settle(self) -> None:
+        if self._cancel_settle is not None:
+            self._cancel_settle()
+            self._cancel_settle = None
 
     @property
     def _reported_option(self) -> str | None:
@@ -88,12 +103,20 @@ class GrillTemperatureUnitSelect(BaseEntity, SelectEntity):
         self._pending_option = option
         self.async_write_ha_state()
         # The MCU reports back within a couple of seconds; an immediate
-        # refresh would only read the cleared status. Tie the timer to the
-        # entity so unloading in the meantime cancels it instead of firing at
-        # a coordinator that is already gone.
-        self.async_on_remove(
-            async_call_later(self.hass, MCU_SETTLE_SECONDS, self._async_confirm)
+        # refresh would only read the cleared status. A second selection
+        # inside the window replaces the timer rather than queueing another.
+        self._cancel_pending_settle()
+        self._cancel_settle = async_call_later(
+            self.hass, MCU_SETTLE_SECONDS, self._async_confirm
         )
 
     async def _async_confirm(self, _now) -> None:
+        self._cancel_settle = None
         await self.coordinator.async_request_refresh()
+        # One settle window is all the pending value is for. If the refresh
+        # confirmed the change, `_handle_coordinator_update` has already
+        # cleared it; if the grill did not take it, follow the grill rather
+        # than assert a value it will never report.
+        if self._pending_option is not None:
+            self._pending_option = None
+            self.async_write_ha_state()
