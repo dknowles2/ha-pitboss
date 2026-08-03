@@ -19,7 +19,7 @@ from homeassistant.const import (
     Platform,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.typing import ConfigType
@@ -135,6 +135,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             control_board,
         )
         control_board = None
+        try:
+            await hass.async_add_executor_job(grills.get_grill, model, None)
+        except InvalidGrill as ex:
+            # Not "not ready": `api.start()` would raise this again on every
+            # retry, and no amount of waiting introduces a model to the
+            # catalogue. Asking the user to reconfigure is the only way out.
+            raise ConfigEntryError(f"Unknown grill model: {model}") from ex
 
     # Constructed inline: since spec resolution moved into `start()`, the
     # constructor only assigns attributes. The executor job it ran in was a

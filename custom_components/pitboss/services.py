@@ -9,6 +9,7 @@ from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
+from pytboss.exceptions import Unauthorized
 
 from .const import DOMAIN, LOGGER
 from .coordinator import PitBossDataUpdateCoordinator
@@ -55,6 +56,16 @@ async def _async_set_grill_password(hass: HomeAssistant, call: ServiceCall) -> N
 
     try:
         await coordinator.api.set_grill_password(new_password)
+    except Unauthorized as ex:
+        # Changing the password is authenticated with the current one, so
+        # this means the one Home Assistant holds is not the grill's. That is
+        # the same condition the coordinator opens a reauth flow for, and it
+        # is the only thing that lets the user fix it.
+        entry.async_start_reauth(hass)
+        raise HomeAssistantError(
+            "The grill rejected the password Home Assistant holds. "
+            "Enter the current one and try again."
+        ) from ex
     except Exception as ex:
         raise HomeAssistantError(f"Could not set the grill password: {ex}") from ex
 
