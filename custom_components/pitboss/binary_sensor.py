@@ -164,6 +164,12 @@ class ConnectivitySensor(BaseEntity, BinarySensorEntity):
     Unlike every other entity this one stays available while the grill is
     disconnected: an entity that disappears cannot say the grill is offline,
     which is the one thing an offline automation needs to hear.
+
+    Reachable means the transport is connected *and* the grill answers
+    polls. The transport alone is not enough: on the cloud protocol
+    `is_connected()` reflects the socket to the vendor's relay, which
+    accepts the connection whether or not the grill is on the other side
+    of it -- so a powered-off grill read as "connected".
     """
 
     _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
@@ -184,7 +190,11 @@ class ConnectivitySensor(BaseEntity, BinarySensorEntity):
 
     @property
     def is_on(self) -> bool:
-        return bool(self.coordinator.api) and self.coordinator.api.is_connected()
+        return (
+            bool(self.coordinator.api)
+            and self.coordinator.api.is_connected()
+            and self.coordinator.last_update_success
+        )
 
 
 class MeatProbeControlSensor(BaseEntity, BinarySensorEntity):
