@@ -280,3 +280,74 @@ async def test_a_restored_target_the_grill_already_has_is_not_rewritten(
 
     mock_pitboss.set_probe_target.assert_not_awaited()
     assert coordinator.probe_target(2) == 190
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_the_value_we_set_survives_a_stale_board_report(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """The board keeps reporting the previous target for a moment.
+
+    `probe_target` puts `pNTarget` first, so reading it straight back after a
+    set makes the slider snap to the old value. 15 of the 20 control boards
+    report `p1Target`, so this is the common path rather than an edge case.
+    """
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data(
+        {"p1Target": 165, "p1Temp": 70, "isFahrenheit": True}
+    )
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        "number",
+        "set_value",
+        {"entity_id": "number.mygrill_mpc_target", "value": 180},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    state = hass.states.get("number.mygrill_mpc_target")
+    assert state is not None
+    assert state.state == "180"
+
+    # Still the old value on the wire; the entity must not follow it back.
+    coordinator.async_set_updated_data(
+        {"p1Target": 165, "p1Temp": 70, "isFahrenheit": True}
+    )
+    await hass.async_block_till_done()
+    state = hass.states.get("number.mygrill_mpc_target")
+    assert state is not None
+    assert state.state == "180"
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_the_grill_wins_once_it_confirms(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """Once the board reports the new target, it is the board's value again."""
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data({"p1Target": 165, "isFahrenheit": True})
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        "number",
+        "set_value",
+        {"entity_id": "number.mygrill_mpc_target", "value": 180},
+        blocking=True,
+    )
+    coordinator.async_set_updated_data({"p1Target": 180, "isFahrenheit": True})
+    await hass.async_block_till_done()
+
+    entity = get_entity(
+        hass, "number", "number.mygrill_mpc_target", TargetProbeTemperature
+    )
+    assert entity._pending_value is None
+    state = hass.states.get("number.mygrill_mpc_target")
+    assert state is not None
+    assert state.state == "180"

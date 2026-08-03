@@ -9,12 +9,11 @@ from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_call_later
 
-from .const import DOMAIN
+from .const import DOMAIN, MCU_SETTLE_SECONDS
 from .coordinator import PitBossDataUpdateCoordinator
 from .entity import BaseEntity
 
 # The MCU is polled every couple of seconds; give it time to report back.
-MCU_SETTLE_SECONDS = 6
 
 UNIT_CELSIUS = UnitOfTemperature.CELSIUS
 UNIT_FAHRENHEIT = UnitOfTemperature.FAHRENHEIT
