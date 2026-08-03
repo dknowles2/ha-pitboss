@@ -17,7 +17,13 @@ from homeassistant.const import CONF_DEVICE_ID, CONF_MODEL, CONF_PASSWORD, CONF_
 from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
 from pytboss import grills
 
-from .const import ALL_PROTOCOLS, DEFAULT_PROTOCOL, DOMAIN, LOGGER
+from .const import (
+    ALL_PROTOCOLS,
+    CONF_ENABLE_REMOTE_START,
+    DEFAULT_PROTOCOL,
+    DOMAIN,
+    LOGGER,
+)
 
 
 def _models_on_board(control_board: str) -> list[str]:
