@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 from unittest.mock import Mock, patch
 
 import pytest
@@ -8,7 +9,13 @@ from homeassistant.core import HomeAssistant
 from pytboss.exceptions import GrillUnavailable, RPCError, Unauthorized
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.pitboss.const import DOMAIN, PROTOCOL_BLE, PROTOCOL_WSS
+from custom_components.pitboss.const import (
+    ACTIVE_SCAN_INTERVAL,
+    DOMAIN,
+    PROTOCOL_BLE,
+    PROTOCOL_WSS,
+    STANDBY_SCAN_INTERVAL,
+)
 from custom_components.pitboss.coordinator import PitBossDataUpdateCoordinator
 
 pytestmark = pytest.mark.parametrize("model", ["PBV4PS2"])
@@ -227,3 +234,39 @@ async def test_other_rpc_errors_do_not_ask_for_a_password(
 
     assert entry.state is ConfigEntryState.SETUP_RETRY
     assert hass.config_entries.flow.async_progress() == []
+
+async def test_the_poll_interval_follows_the_grill(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """Poll hard while the grill runs, back off in standby."""
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    assert coordinator.update_interval == STANDBY_SCAN_INTERVAL
+
+    await coordinator._on_state_update({"moduleIsOn": True})
+    await hass.async_block_till_done()
+    assert coordinator.update_interval == ACTIVE_SCAN_INTERVAL
+
+    await coordinator._on_state_update({"moduleIsOn": False})
+    await hass.async_block_till_done()
+    assert coordinator.update_interval == STANDBY_SCAN_INTERVAL
+
+
+async def test_a_partial_frame_does_not_change_the_interval(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """The board answers with two frames and clears them independently.
+
+    A frame carrying no `moduleIsOn` must not read as "the grill is off" --
+    the merged state is what decides, not the frame in isolation.
+    """
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    await coordinator._on_state_update({"moduleIsOn": True, "grillTemp": 100})
+    assert coordinator.update_interval == ACTIVE_SCAN_INTERVAL
+
+    await coordinator._on_state_update({"grillTemp": 105})
+
+    assert coordinator.update_interval == ACTIVE_SCAN_INTERVAL

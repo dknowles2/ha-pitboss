@@ -8,7 +8,18 @@ LOGGER: Logger = getLogger(__package__)
 NAME = "PitBoss"
 DOMAIN = "pitboss"
 MANUFACTURER = NAME
-PING_INTERVAL = timedelta(seconds=30)
+# How often the coordinator polls, depending on what the grill is doing.
+#
+# Nothing interesting changes on a grill sitting in standby, and each cycle
+# costs several round trips -- but once it is lit, temperatures move and the
+# delay is what the user actually feels. Against the flat 30s these replace,
+# an idle day halves its requests and even a four-hour cook makes slightly
+# fewer of them overall.
+#
+# Constants rather than options because this integration has no options flow
+# yet. They are the two values that would become fields when it grows one.
+ACTIVE_SCAN_INTERVAL = timedelta(seconds=10)
+STANDBY_SCAN_INTERVAL = timedelta(seconds=60)
 # Diagnostics change slowly; no need to read them at the poll rate.
 SYS_INFO_INTERVAL = 60.0
 PROTOCOL_WSS = "wss"

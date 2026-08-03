@@ -19,7 +19,13 @@ from pytboss.exceptions import (
 )
 from pytboss.grills import StateDict
 
-from .const import DOMAIN, LOGGER, PING_INTERVAL, SYS_INFO_INTERVAL
+from .const import (
+    ACTIVE_SCAN_INTERVAL,
+    DOMAIN,
+    LOGGER,
+    STANDBY_SCAN_INTERVAL,
+    SYS_INFO_INTERVAL,
+)
 
 
 class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
@@ -38,7 +44,11 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
     ) -> None:
         """Initialize the coordinator."""
         super().__init__(
-            hass=hass, logger=LOGGER, name=DOMAIN, update_interval=PING_INTERVAL
+            hass=hass,
+            logger=LOGGER,
+            name=DOMAIN,
+            # Starts in standby; the first state that arrives corrects it.
+            update_interval=STANDBY_SCAN_INTERVAL,
         )
         self.device_info = device_info
         self.api = api
@@ -186,9 +196,23 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         merged.update(state)
         return merged
 
+    def _apply_poll_interval(self, state: StateDict) -> None:
+        """Poll hard while the grill runs, back off in standby."""
+        wanted = (
+            ACTIVE_SCAN_INTERVAL if state.get("moduleIsOn") else STANDBY_SCAN_INTERVAL
+        )
+        if self.update_interval != wanted:
+            self.logger.debug("Polling every %s", wanted)
+            self.update_interval = wanted
+
     async def _on_state_update(self, data: StateDict) -> None:
         self.logger.debug("Received data: %s", data)
-        self.async_set_updated_data(self._merge_state(data))
+        merged = self._merge_state(data)
+        # Applied on the push path too: on Bluetooth a power change arrives
+        # this way, and the poll interval should follow it without waiting
+        # for the next poll to notice.
+        self._apply_poll_interval(merged)
+        self.async_set_updated_data(merged)
 
     async def _start_api(self) -> None:
         try:
@@ -232,6 +256,7 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         # a reconnect if push notifications stop being delivered.
         try:
             state = self._merge_state(await self.api.get_state())
+            self._apply_poll_interval(state)
             await self._async_refresh_probe_targets(state)
             return state
         except NotConnectedError as ex:
