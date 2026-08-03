@@ -9,7 +9,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from pytboss.api import PitBoss
-from pytboss.exceptions import GrillUnavailable, NotConnectedError, RPCError
+from pytboss.exceptions import (
+    GrillUnavailable,
+    NotConnectedError,
+    RPCError,
+    UnsupportedOperation,
+)
 from pytboss.grills import StateDict
 
 from .const import DOMAIN, LOGGER, PING_INTERVAL, SYS_INFO_INTERVAL
@@ -39,6 +44,11 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         # Latest Sys.GetInfo payload from the control board.
         self.sys_info: dict = {}
         self._sys_info_at = 0.0
+        # What the grill is holding, and what we are holding for it. See
+        # `probe_target` for why both exist.
+        self.probe_targets: dict[int, int] = {}
+        self.restored_targets: dict[int, int] = {}
+        self._targets_seeded = False
 
     def accepted_setpoints(self, unit: str) -> list[float]:
         """Grill setpoints the control board honours, expressed in `unit`.
@@ -61,6 +71,69 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
     def has_mpc(self) -> bool:
         """Whether the grill has a meat probe control port."""
         return self.api.spec.has_mpc
+
+    @property
+    def grill_unit(self) -> str:
+        """The unit the grill is currently working in."""
+        if (data := self.data) and not data.get("isFahrenheit"):
+            return UnitOfTemperature.CELSIUS
+        return UnitOfTemperature.FAHRENHEIT
+
+    def probe_target(self, probe_number: int) -> int | None:
+        """This probe's target, in the grill's own unit.
+
+        Board-reported first: `pNTarget` is already in the state we hold, so
+        reading it here means a target the grill announces shows immediately
+        rather than at the next poll. Then what pytboss resolved from the
+        grill's store. Then ours -- a target we set and restored across a
+        restart, which exists only because Home Assistant outlives that store.
+        """
+        reported = (self.data or {}).get(f"p{probe_number}Target")
+        if isinstance(reported, (int, float)):
+            return int(reported)
+        if (target := self.probe_targets.get(probe_number)) is not None:
+            return target
+        return self.restored_targets.get(probe_number)
+
+    async def async_set_probe_target(self, probe_number: int, temp: int) -> None:
+        """Set a probe's target, keeping it if the grill cannot take it yet."""
+        self.restored_targets[probe_number] = temp
+        try:
+            await self.api.set_probe_target(probe_number, temp)
+        except UnsupportedOperation:
+            # The grill is off: its store rejects writes and is wiped anyway.
+            # Held here and written when it comes on.
+            return
+        self.probe_targets[probe_number] = temp
+
+    async def _async_refresh_probe_targets(self, state: StateDict) -> None:
+        """Track the targets the grill is holding. Never fatal."""
+        if not state.get("moduleIsOn"):
+            self.probe_targets = {}
+            self._targets_seeded = False
+            return
+        try:
+            # Copied: we add to this below, and it is not ours to mutate.
+            self.probe_targets = dict(await self.api.get_probe_targets())
+        except Exception as ex:  # noqa: BLE001
+            self.logger.debug("Could not fetch the probe targets: %s", ex)
+            return
+        if self._targets_seeded:
+            return
+        self._targets_seeded = True
+        # The grill has just come on, so anything we are holding that it does
+        # not know about goes over now. That is what makes setting a target on
+        # a cold grill mean anything. A target the grill already has was set
+        # elsewhere and wins.
+        for probe_number, temp in self.restored_targets.items():
+            if probe_number in self.probe_targets:
+                continue
+            try:
+                await self.api.set_probe_target(probe_number, temp)
+            except Exception as ex:  # noqa: BLE001
+                self.logger.debug("Could not seed a probe target: %s", ex)
+            else:
+                self.probe_targets[probe_number] = temp
 
     async def _async_setup(self) -> None:
         """Set up the coordinator."""
@@ -141,7 +214,9 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         # Relying solely on push notifications means sensors can go stale after
         # a reconnect if push notifications stop being delivered.
         try:
-            return self._merge_state(await self.api.get_state())
+            state = self._merge_state(await self.api.get_state())
+            await self._async_refresh_probe_targets(state)
+            return state
         except NotConnectedError as ex:
             raise UpdateFailed("Grill not connected") from ex
         except RPCError as ex:

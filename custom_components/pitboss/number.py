@@ -1,17 +1,15 @@
 """Number platform for pitboss."""
 
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Literal
 
-from homeassistant.components.number import NumberEntity, NumberEntityDescription
+from homeassistant.components.number import NumberEntityDescription, RestoreNumber
 from homeassistant.components.number.const import NumberDeviceClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util.unit_conversion import TemperatureConverter
-from pytboss.api import PitBoss
 
 from .const import (
     DEFAULT_PROBE_CELSIUS_STEP,
@@ -27,50 +25,37 @@ from .entity import BaseEntity
 
 @dataclass(frozen=True, kw_only=True)
 class PitBossNumberEntityDescription(NumberEntityDescription):
-    key: Literal["p1Target", "p2Target"]
-    probe_number: Literal[1, 2]
-    set_fn: Callable[[PitBoss], Callable[[int], Awaitable[dict]]]
+    key: Literal["p1Target", "p2Target", "p3Target", "p4Target"]
+    probe_number: Literal[1, 2, 3, 4]
     device_class: NumberDeviceClass = NumberDeviceClass.TEMPERATURE
     icon: str = "mdi:thermometer"
-    matching_probe_key: Literal["p1Temp", "p2Temp"]
 
 
-PROBE_1_DESCRIPTION = PitBossNumberEntityDescription(
-    key="p1Target",
-    probe_number=1,
-    set_fn=lambda api: api.set_probe_temperature,
-    matching_probe_key="p1Temp",
-)
-PROBE_2_DESCRIPTION = PitBossNumberEntityDescription(
-    key="p2Target",
-    probe_number=2,
-    set_fn=lambda api: api.set_probe_2_temperature,
-    matching_probe_key="p2Temp",
+PROBE_DESCRIPTIONS = (
+    PitBossNumberEntityDescription(key="p1Target", probe_number=1),
+    PitBossNumberEntityDescription(key="p2Target", probe_number=2),
+    PitBossNumberEntityDescription(key="p3Target", probe_number=3),
+    PitBossNumberEntityDescription(key="p4Target", probe_number=4),
 )
 
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_devices: AddEntitiesCallback
 ):
-    """Setup number platformm."""
+    """Setup number platform."""
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     assert entry.unique_id is not None
-    entities: list[TargetProbeTemperature] = []
-    if "set-probe-1-temperature" in (
-        available_commands := coordinator.api.spec.control_board.commands
-    ):
-        entities.append(
-            TargetProbeTemperature(coordinator, entry.unique_id, PROBE_1_DESCRIPTION)
-        )
-    if "set-probe-2-temperature" in available_commands:
-        entities.append(
-            TargetProbeTemperature(coordinator, entry.unique_id, PROBE_2_DESCRIPTION)
-        )
+    probe_count = coordinator.api.spec.meat_probes or 1
+    entities = [
+        TargetProbeTemperature(coordinator, entry.unique_id, description)
+        for description in PROBE_DESCRIPTIONS
+        if description.probe_number <= probe_count
+    ]
     if entities:
         async_add_devices(entities)
 
 
-class TargetProbeTemperature(BaseEntity, NumberEntity):
+class TargetProbeTemperature(BaseEntity, RestoreNumber):
     """PitBoss target probe temperature class."""
 
     def __init__(
@@ -85,53 +70,79 @@ class TargetProbeTemperature(BaseEntity, NumberEntity):
         label = probe_label(coordinator.has_mpc, entity_description.probe_number)
         self._attr_name = f"{label} target"
 
+    async def async_added_to_hass(self) -> None:
+        """Restore the target we last set for this probe.
+
+        The grill's own store is wiped when it is switched off, so without
+        this a target set on a cold grill would not survive a Home Assistant
+        restart. Anything the grill is holding wins over the restored value.
+        """
+        await super().async_added_to_hass()
+        probe_number = self.entity_description.probe_number
+        if self.coordinator.probe_target(probe_number) is not None:
+            return
+        last_data = await self.async_get_last_number_data()
+        if last_data is None or last_data.native_value is None:
+            return
+        # `probe_targets` holds grill-unit values; the restored one carries the
+        # unit it was displayed in, which the grill may since have changed.
+        value = last_data.native_value
+        stored_unit = last_data.native_unit_of_measurement
+        if stored_unit and stored_unit != self.coordinator.grill_unit:
+            value = TemperatureConverter.convert(
+                value, stored_unit, self.coordinator.grill_unit
+            )
+        self.coordinator.restored_targets[probe_number] = round(value)
+
     @property
-    def native_unit_of_measurement(self) -> UnitOfTemperature | None:
+    def native_unit_of_measurement(self) -> str:
         """Return the unit of measurement of the entity."""
-        if (data := self.coordinator.data) and not data.get("isFahrenheit"):
-            return UnitOfTemperature.CELSIUS
-        return UnitOfTemperature.FAHRENHEIT
+        return self.coordinator.grill_unit
 
     @property
     def native_step(self) -> float:
         """Return the step size of the number."""
         if self.native_unit_of_measurement == UnitOfTemperature.FAHRENHEIT:
             return DEFAULT_PROBE_FAHRENHEIT_STEP
-        else:
-            return DEFAULT_PROBE_CELSIUS_STEP
+        return DEFAULT_PROBE_CELSIUS_STEP
 
     @property
     def available(self) -> bool:
-        if data := self.coordinator.data:
-            return (
-                data.get(self.entity_description.matching_probe_key) is not None
-                and super().available
-            )
+        # Deliberately not gated on the probe being plugged in: the grill
+        # accepts a target for an empty port, so it can be dialled in before
+        # the probe goes into the meat.
         return super().available
 
     @property
-    def native_value(self) -> int | None:
-        """Return the native value of the probe target."""
-        if data := self.coordinator.data:
-            return data.get(self.entity_description.key)
-        return None
+    def native_value(self) -> float | None:
+        """Return the probe target, in the grill's own unit.
+
+        Deliberately an int: coercing to float would render the state as
+        "165.0" where it has always been "165".
+        """
+        return self.coordinator.probe_target(self.entity_description.probe_number)
 
     async def async_set_native_value(self, value: float) -> None:
-        """Set new value."""
-        await self.entity_description.set_fn(self.coordinator.api)(int(value))
+        """Set the target, by whichever route this probe supports."""
+        await self.coordinator.async_set_probe_target(
+            self.entity_description.probe_number, round(value)
+        )
+        self.coordinator.async_update_listeners()
 
     @property
     def native_min_value(self) -> float:
         """Return the minimum value."""
-        min_temp = DEFAULT_PROBE_MIN_TEMP
         return TemperatureConverter.convert(
-            min_temp, UnitOfTemperature.FAHRENHEIT, self.native_unit_of_measurement
+            DEFAULT_PROBE_MIN_TEMP,
+            UnitOfTemperature.FAHRENHEIT,
+            self.native_unit_of_measurement,
         )
 
     @property
     def native_max_value(self) -> float:
         """Return the maximum value."""
-        max_temp = DEFAULT_PROBE_MAX_TEMP
         return TemperatureConverter.convert(
-            max_temp, UnitOfTemperature.FAHRENHEIT, self.native_unit_of_measurement
+            DEFAULT_PROBE_MAX_TEMP,
+            UnitOfTemperature.FAHRENHEIT,
+            self.native_unit_of_measurement,
         )

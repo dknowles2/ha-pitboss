@@ -128,4 +128,6 @@ def mock_pitboss(spec: Grill) -> Generator[Mock]:
         # know about them.
         api.config = Mock()
         api.config.get_info = AsyncMock(return_value={})
+        # autospec gives this a Mock return value; targets are a dict.
+        api.get_probe_targets = AsyncMock(return_value={})
         yield api
