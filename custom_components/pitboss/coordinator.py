@@ -7,6 +7,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from pytboss.api import PitBoss
@@ -200,6 +201,26 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         except Exception as ex:  # noqa: BLE001
             # Cosmetic; never worth failing a refresh over.
             self.logger.debug("Could not fetch the firmware version: %s", ex)
+            return
+        if self.firmware_version:
+            self._async_publish_firmware_version()
+
+    def _async_publish_firmware_version(self) -> None:
+        """Put the version where the device page reads it from.
+
+        `device_info` covers the first read, which happens before the device
+        exists -- the registry entry is created from it when the platforms
+        are set up. A read that only succeeds later has to update the
+        registry itself, which is the whole point of retrying: the sensor
+        would populate while the device page stayed blank until a reload.
+        """
+        self.device_info["sw_version"] = self.firmware_version
+        registry = dr.async_get(self.hass)
+        device = registry.async_get_device(
+            identifiers=self.device_info.get("identifiers", set())
+        )
+        if device is not None:
+            registry.async_update_device(device.id, sw_version=self.firmware_version)
 
     def _merge_state(self, state: StateDict) -> StateDict:
         """Fold a state frame onto the last known one.

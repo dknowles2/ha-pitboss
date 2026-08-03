@@ -167,9 +167,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await pitboss.stop()
         raise
 
-    if coordinator.firmware_version:
-        coordinator.device_info["sw_version"] = coordinator.firmware_version
-
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
