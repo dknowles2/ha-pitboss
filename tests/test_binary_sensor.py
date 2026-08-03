@@ -111,3 +111,84 @@ async def test_connectivity_reports_offline_instead_of_vanishing(
     state = hass.states.get(_entity_id("Connectivity"))
     assert state is not None
     assert state.state == "off"
+
+
+async def test_a_target_reached_sensor_per_probe(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """PBV4PS2 has two probes, so there is no third or fourth."""
+    await mock_add_config_entry()
+    assert hass.states.get(_entity_id("MPC target reached")) is not None
+    assert hass.states.get(_entity_id("P2 target reached")) is not None
+    assert hass.states.get(_entity_id("P3 target reached")) is None
+
+
+async def test_target_reached_follows_the_probe(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+
+    coordinator.async_set_updated_data({"p1Temp": 70, "p1Target": 165})
+    await hass.async_block_till_done()
+    state = hass.states.get(_entity_id("MPC target reached"))
+    assert state is not None
+    assert state.state == "off"
+
+    coordinator.async_set_updated_data({"p1Temp": 165, "p1Target": 165})
+    await hass.async_block_till_done()
+    state = hass.states.get(_entity_id("MPC target reached"))
+    assert state is not None
+    assert state.state == "on"
+
+
+async def test_target_reached_is_off_rather_than_unknown(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """An automation on off-to-on cannot trigger out of `unknown`.
+
+    So an unplugged probe, or one with no target, reads `off` rather than
+    reporting that it does not know.
+    """
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+
+    # Probe plugged in, no target anywhere.
+    coordinator.async_set_updated_data({"p2Temp": 70})
+    await hass.async_block_till_done()
+    state = hass.states.get(_entity_id("P2 target reached"))
+    assert state is not None
+    assert state.state == "off"
+
+    # Target set, no probe in the port.
+    coordinator.restored_targets[2] = 165
+    coordinator.async_set_updated_data({"p2Temp": None})
+    await hass.async_block_till_done()
+    state = hass.states.get(_entity_id("P2 target reached"))
+    assert state is not None
+    assert state.state == "off"
+
+
+async def test_target_reached_uses_a_target_the_grill_does_not_report(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """The point of the sensor: probes the grill raises nothing for."""
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.restored_targets[2] = 165
+
+    coordinator.async_set_updated_data({"p2Temp": 164})
+    await hass.async_block_till_done()
+    state = hass.states.get(_entity_id("P2 target reached"))
+    assert state is not None
+    assert state.state == "off"
+
+    coordinator.async_set_updated_data({"p2Temp": 166})
+    await hass.async_block_till_done()
+    state = hass.states.get(_entity_id("P2 target reached"))
+    assert state is not None
+    assert state.state == "on"

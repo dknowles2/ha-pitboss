@@ -123,6 +123,10 @@ async def async_setup_entry(
     for entity_description in ENTITY_DESCRIPTIONS:
         entities.append(BinarySensor(coordinator, entry.unique_id, entity_description))
     entities.append(ConnectivitySensor(coordinator, entry.unique_id))
+    for probe_number in range(1, (coordinator.api.spec.meat_probes or 0) + 1):
+        entities.append(
+            ProbeTargetReachedSensor(coordinator, entry.unique_id, probe_number)
+        )
     async_add_entities(entities)
 
 
@@ -180,3 +184,40 @@ class ConnectivitySensor(BaseEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool:
         return bool(self.coordinator.api) and self.coordinator.api.is_connected()
+
+
+class ProbeTargetReachedSensor(BaseEntity, BinarySensorEntity):
+    """Whether a probe has reached the target set for it.
+
+    The grill acts on the control probe only, so it raises nothing for the
+    rest. This gives every probe the same signal to automate on, comparing
+    the reported temperature against whatever target the probe has -- one the
+    board reports, one in its virtual data store, or one restored here.
+
+    Deliberately `off` rather than unknown when there is no probe or no
+    target: an automation triggering on off-to-on does not fire reliably out
+    of `unknown` or `unavailable`, and this entity exists to be triggered on.
+    """
+
+    _attr_icon = "mdi:thermometer-check"
+
+    def __init__(
+        self,
+        coordinator: PitBossDataUpdateCoordinator,
+        entry_unique_id: str,
+        probe_number: int,
+    ) -> None:
+        super().__init__(coordinator, entry_unique_id)
+        self.probe_number = probe_number
+        self._attr_unique_id = f"probe{probe_number}_target_reached_{entry_unique_id}"
+        label = probe_label(coordinator.has_mpc, probe_number)
+        self._attr_name = f"{label} target reached"
+
+    @property
+    def is_on(self) -> bool:
+        data = self.coordinator.data or {}
+        temperature = data.get(f"p{self.probe_number}Temp")
+        target = self.coordinator.probe_target(self.probe_number)
+        if not isinstance(temperature, (int, float)) or target is None:
+            return False
+        return temperature >= target
