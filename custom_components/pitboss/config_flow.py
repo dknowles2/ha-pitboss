@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
@@ -106,6 +107,35 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
                 }
             ),
             description_placeholders={"name": self._device_id},
+        )
+
+    async def async_step_reauth(
+        self, entry_data: Mapping[str, Any]
+    ) -> ConfigFlowResult:
+        """Handle a password the grill no longer accepts."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Ask for the grill's current password.
+
+        Optional and defaulting to empty, because clearing the password on the
+        grill is a supported thing to do -- the firmware treats an empty one
+        as no authentication at all.
+        """
+        reauth_entry = self._get_reauth_entry()
+        if user_input is not None:
+            return self.async_update_reload_and_abort(
+                reauth_entry,
+                data_updates={CONF_PASSWORD: user_input.get(CONF_PASSWORD, "")},
+            )
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema({vol.Optional(CONF_PASSWORD, default=""): str}),
+            description_placeholders={
+                "name": reauth_entry.data.get(CONF_DEVICE_ID, "")
+            },
         )
 
     async def async_step_reconfigure(

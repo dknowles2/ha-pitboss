@@ -4,7 +4,8 @@
     "abort": {
       "already_configured": "Grill is already configured",
       "reconfigure_successful": "Re-configuration was successful",
-      "unknown_grill": "Unknown grill type: {control_board}"
+      "unknown_grill": "Unknown grill type: {control_board}",
+      "reauth_successful": "Re-authentication was successful"
     },
     "step": {
       "bluetooth_confirm": {
@@ -40,6 +41,13 @@
           "model": "The model is needed to properly communicate with your grill",
           "password": "The password for your grill, NOT your PitBoss account",
           "protocol": "The protocol to use to connect to your grill."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-enter the grill password",
+        "description": "{name} rejected the stored password. Enter the password set on the grill, or leave it empty if the grill has none.",
+        "data": {
+          "password": "Password"
         }
       }
     }
