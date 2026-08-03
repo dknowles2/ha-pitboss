@@ -93,8 +93,7 @@ async def async_setup_entry(
         entities.append(ProbeSensor(coordinator, entry.unique_id, entity_description))
     for description in SYS_INFO_DESCRIPTIONS:
         entities.append(SysInfoSensor(coordinator, entry.unique_id, description))
-    if coordinator.firmware_version:
-        entities.append(FirmwareSensor(coordinator, entry.unique_id))
+    entities.append(FirmwareSensor(coordinator, entry.unique_id))
     if coordinator.api.spec.json.get("has_recipe_functionality", False):
         for entity_description in RECIPE_ENTITY_DESCRIPTIONS:
             entities.append(
@@ -197,7 +196,9 @@ class FirmwareSensor(BaseEntity, SensorEntity):
 
     @property
     def available(self) -> bool:
-        # Read once at setup and unchanging, so it stays readable while the
+        # Unavailable only until the first successful read -- the coordinator
+        # keeps retrying one that failed at setup. Once known the version
+        # cannot change outside a reload, so it stays readable while the
         # grill is away rather than following the connection.
         return self.coordinator.firmware_version is not None
 
