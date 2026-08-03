@@ -65,6 +65,54 @@ async def test_setup_entry_not_ready_disconnects_and_stops(
     mock_pitboss.stop.assert_awaited_once()
 
 
+async def test_setup_passes_the_advertised_control_board(
+    hass: HomeAssistant, mock_wss_conn: Mock, mock_pitboss_cls: Mock
+) -> None:
+    """The device-id prefix names the board, so setup must resolve with it.
+
+    A few models were sold on two board generations; by name alone pytboss
+    returns the board the vendor lists most recently, which is wrong for
+    every grill on the older one.
+    """
+    mock_pitboss_cls.return_value.get_state.return_value = {}
+    entry = MockConfigEntry(
+        title="title",
+        domain=DOMAIN,
+        data={
+            CONF_DEVICE_ID: "PBL-AABBCC",
+            CONF_MODEL: "PBV4PS2",
+            CONF_PASSWORD: "asdfasdf",
+            CONF_PROTOCOL: PROTOCOL_WSS,
+        },
+        unique_id="pbl-aabbcc",
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert mock_pitboss_cls.call_args.kwargs["control_board"] == "PBL"
+
+
+async def test_setup_falls_back_when_the_board_has_no_such_model(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss_cls: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An entry whose prefix and model do not pair keeps today's behaviour.
+
+    The board-remap workarounds this repo used to ship could store a model
+    that was never sold under the advertised prefix; those entries resolve
+    by name alone, as every release so far did.
+    """
+    entry = await mock_add_config_entry()  # device id "mygrill"
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert mock_pitboss_cls.call_args.kwargs["control_board"] is None
+    assert "has no variant on control board mygrill" in caplog.text
+
+
 async def test_setup_entry_ble_connects_and_forwards_platforms(
     hass: HomeAssistant, mock_pitboss: Mock
 ) -> None:
