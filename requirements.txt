@@ -8,5 +8,5 @@ pyserial-asyncio==0.6
 pyserial==3.5
 pytboss==2026.8.3
 pytest_homeassistant_custom_component==0.13.348
-ruff==0.16.0
+ruff==0.16.1
 serialx==1.8.2
