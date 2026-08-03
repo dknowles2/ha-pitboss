@@ -235,6 +235,7 @@ async def test_other_rpc_errors_do_not_ask_for_a_password(
     assert entry.state is ConfigEntryState.SETUP_RETRY
     assert hass.config_entries.flow.async_progress() == []
 
+
 async def test_the_poll_interval_follows_the_grill(
     hass: HomeAssistant,
     mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
