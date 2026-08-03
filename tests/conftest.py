@@ -120,9 +120,10 @@ def mock_wss_conn() -> Generator[Mock]:
 
 
 @pytest.fixture
-def mock_pitboss(spec: Grill) -> Generator[Mock]:
-    with patch("pytboss.api.PitBoss", autospec=True) as mock_pitboss_cls:
-        api = mock_pitboss_cls.return_value
+def mock_pitboss_cls(spec: Grill) -> Generator[Mock]:
+    """The patched PitBoss class, for asserting on constructor arguments."""
+    with patch("pytboss.api.PitBoss", autospec=True) as mock_cls:
+        api = mock_cls.return_value
         api.spec = spec
         # `config` and `fs` are set in PitBoss.__init__, so autospec does not
         # know about them.
@@ -130,4 +131,9 @@ def mock_pitboss(spec: Grill) -> Generator[Mock]:
         api.config.get_info = AsyncMock(return_value={})
         # autospec gives this a Mock return value; targets are a dict.
         api.get_probe_targets = AsyncMock(return_value={})
-        yield api
+        yield mock_cls
+
+
+@pytest.fixture
+def mock_pitboss(mock_pitboss_cls: Mock) -> Mock:
+    return mock_pitboss_cls.return_value
