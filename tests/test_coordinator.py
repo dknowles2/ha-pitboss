@@ -7,6 +7,10 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 from pytboss.exceptions import GrillUnavailable, NotConnectedError, RPCError
 from pytboss.grills import StateDict
 
+from custom_components.pitboss.const import (
+    ACTIVE_SCAN_INTERVAL,
+    STANDBY_SCAN_INTERVAL,
+)
 from custom_components.pitboss.coordinator import PitBossDataUpdateCoordinator
 
 pytestmark = pytest.mark.parametrize("model", ["PBV4PS2"])
@@ -150,3 +154,41 @@ async def test_on_state_update_merges_onto_previous_data(
 
     await coordinator._on_state_update({"moduleIsOn": False})
     assert coordinator.data == {"grillTemp": 225, "moduleIsOn": False}
+
+
+async def test_a_ping_timeout_is_reported_as_a_failed_update(
+    coordinator: PitBossDataUpdateCoordinator, mock_pitboss: Mock
+) -> None:
+    """`send_command` raises `TimeoutError` when no reply arrives.
+
+    That is the ordinary outcome for a grill that is off behind a socket
+    which is still open, so it must not reach Home Assistant's generic
+    handler as an unexpected error.
+    """
+    coordinator._api_started = True
+    mock_pitboss.is_connected.return_value = True
+    mock_pitboss.ping.side_effect = TimeoutError()
+
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
+
+
+async def test_a_failed_cycle_backs_the_poll_interval_off(
+    coordinator: PitBossDataUpdateCoordinator, mock_pitboss: Mock
+) -> None:
+    """The interval was otherwise whatever the last success set.
+
+    On the cloud relay the socket outlives the grill, so a grill switched
+    off keeps failing at the active cadence -- a ten-second ping in flight
+    for as long as it is off.
+    """
+    coordinator._api_started = True
+    mock_pitboss.is_connected.return_value = True
+    coordinator._apply_poll_interval(StateDict(moduleIsOn=True))
+    assert coordinator.update_interval == ACTIVE_SCAN_INTERVAL
+
+    mock_pitboss.ping.side_effect = TimeoutError()
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
+
+    assert coordinator.update_interval == STANDBY_SCAN_INTERVAL

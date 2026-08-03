@@ -286,6 +286,20 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
             self.logger.debug("Could not fetch the system info: %s", ex)
 
     async def _async_update_data(self) -> StateDict:
+        try:
+            return await self._async_poll()
+        except UpdateFailed:
+            # Back off before giving up on this cycle. The interval is
+            # otherwise whatever the last *successful* read set, so a grill
+            # that goes off while the connection stays up -- which is the
+            # normal case on the cloud relay, where the socket outlives the
+            # grill -- keeps a ten-second ping in flight for as long as it
+            # is off, which is the opposite of what the two intervals exist
+            # for.
+            self._apply_poll_interval(StateDict())
+            raise
+
+    async def _async_poll(self) -> StateDict:
         if not self._api_started:
             self.logger.debug("Starting API")
             await self._start_api()
@@ -297,6 +311,12 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
             await self.api.ping(timeout=10.0)
         except NotConnectedError as ex:
             raise UpdateFailed("Grill not connected") from ex
+        except TimeoutError as ex:
+            # `send_command` raises this when a reply does not arrive, which
+            # is the ordinary outcome for a grill that is off behind a socket
+            # that is still open. Uncaught it reaches Home Assistant's generic
+            # handler, which reports "Timeout fetching pitboss data" instead.
+            raise UpdateFailed("Grill did not answer") from ex
 
         await self._async_refresh_sys_info()
         await self._async_refresh_firmware_version()
@@ -311,6 +331,8 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
             return state
         except NotConnectedError as ex:
             raise UpdateFailed("Grill not connected") from ex
+        except TimeoutError as ex:
+            raise UpdateFailed("Grill did not answer") from ex
         except Unauthorized as ex:
             # The grill rejected the password rather than failing the call.
             # Retrying cannot fix that, and on a transport where `PB.GetState`
