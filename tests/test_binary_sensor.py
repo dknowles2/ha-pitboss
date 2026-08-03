@@ -114,6 +114,34 @@ async def test_connectivity_reports_offline_instead_of_vanishing(
     assert state.state == "off"
 
 
+async def test_connectivity_follows_the_grill_not_just_the_socket(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """A connected transport whose grill stops answering is not reachable.
+
+    On the cloud protocol `is_connected()` reflects the socket to the
+    vendor's relay, which stays open whether or not the grill is behind
+    it -- a powered-off grill read as "connected" until this check also
+    asked whether polls succeed.
+    """
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    mock_pitboss.is_connected.return_value = True
+    coordinator.async_set_updated_data({})
+    await hass.async_block_till_done()
+    state = hass.states.get(_entity_id("Connectivity"))
+    assert state is not None
+    assert state.state == "on"
+
+    coordinator.async_set_update_error(TimeoutError("grill gone"))
+    await hass.async_block_till_done()
+    state = hass.states.get(_entity_id("Connectivity"))
+    assert state is not None
+    assert state.state == "off"
+
+
 async def test_a_target_reached_sensor_per_probe(
     hass: HomeAssistant,
     mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
