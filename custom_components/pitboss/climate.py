@@ -101,14 +101,22 @@ class GrillClimate(BaseEntity, ClimateEntity):
 
     @property
     def current_temperature(self) -> float | None:
-        if (data := self.coordinator.data) and "grillTemp" in data:
-            return float(data["grillTemp"])
+        # Checked for None, not just presence: the boards' own parsing
+        # routines put null on the wire for the no-reading sentinel (960),
+        # the same way an unplugged probe reads. `float(None)` would raise
+        # on every state write for as long as the chamber sensor is out.
+        if (data := self.coordinator.data) and (
+            temp := data.get("grillTemp")
+        ) is not None:
+            return float(temp)
         return None
 
     @property
     def target_temperature(self) -> float | None:
-        if (data := self.coordinator.data) and "grillSetTemp" in data:
-            return float(data["grillSetTemp"])
+        if (data := self.coordinator.data) and (
+            temp := data.get("grillSetTemp")
+        ) is not None:
+            return float(temp)
         return None
 
     async def async_set_temperature(self, **kwargs) -> None:
@@ -129,7 +137,8 @@ class GrillClimate(BaseEntity, ClimateEntity):
             await self.async_turn_off()
         elif hvac_mode == HVACMode.HEAT:
             LOGGER.warning(
-                "For safety reasons, the grill cannot be turned on remotely."
+                "Not lighting the grill from here. Use the pitboss.start_grill "
+                "action, which has to be enabled in the integration options first."
             )
 
     @property

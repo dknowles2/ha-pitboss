@@ -23,6 +23,7 @@ from pytboss.grills import StateDict
 from .const import (
     ACTIVE_SCAN_INTERVAL,
     DOMAIN,
+    FAILURES_BEFORE_BACKOFF,
     LOGGER,
     STANDBY_SCAN_INTERVAL,
     SYS_INFO_INTERVAL,
@@ -66,6 +67,8 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         self.probe_targets: dict[int, int] = {}
         self.restored_targets: dict[int, int] = {}
         self._targets_seeded = False
+        # Consecutive failed cycles, for the backoff decision below.
+        self._failed_polls = 0
 
     def accepted_setpoints(self, unit: str) -> list[float]:
         """Grill setpoints the control board honours, expressed in `unit`.
@@ -287,17 +290,24 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
 
     async def _async_update_data(self) -> StateDict:
         try:
-            return await self._async_poll()
+            state = await self._async_poll()
         except UpdateFailed:
-            # Back off before giving up on this cycle. The interval is
-            # otherwise whatever the last *successful* read set, so a grill
-            # that goes off while the connection stays up -- which is the
+            # Back off, but on a pattern rather than a single miss. The
+            # interval is otherwise whatever the last *successful* read set,
+            # so a grill that goes off while the connection stays up -- the
             # normal case on the cloud relay, where the socket outlives the
-            # grill -- keeps a ten-second ping in flight for as long as it
-            # is off, which is the opposite of what the two intervals exist
-            # for.
-            self._apply_poll_interval(StateDict())
+            # grill -- kept a ten-second ping in flight for as long as it
+            # was off. But one failure is as likely a mid-cook hiccup as a
+            # grill gone away, and backing off on it turned a lost ten-second
+            # poll into a sixty-second gap exactly when freshness matters
+            # most. A grill that is genuinely off fails every cycle, so it
+            # still reaches the slow interval, one failed poll later.
+            self._failed_polls += 1
+            if self._failed_polls >= FAILURES_BEFORE_BACKOFF:
+                self._apply_poll_interval(StateDict())
             raise
+        self._failed_polls = 0
+        return state
 
     async def _async_poll(self) -> StateDict:
         if not self._api_started:

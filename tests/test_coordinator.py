@@ -173,14 +173,17 @@ async def test_a_ping_timeout_is_reported_as_a_failed_update(
         await coordinator._async_update_data()
 
 
-async def test_a_failed_cycle_backs_the_poll_interval_off(
+async def test_repeated_failures_back_the_poll_interval_off(
     coordinator: PitBossDataUpdateCoordinator, mock_pitboss: Mock
 ) -> None:
     """The interval was otherwise whatever the last success set.
 
     On the cloud relay the socket outlives the grill, so a grill switched
     off keeps failing at the active cadence -- a ten-second ping in flight
-    for as long as it is off.
+    for as long as it is off. One failure keeps the interval: it is as
+    likely a mid-cook hiccup as a grill gone away, and backing off on it
+    turned a lost ten-second poll into a sixty-second gap exactly when
+    freshness matters most. A pattern of them backs off.
     """
     coordinator._api_started = True
     mock_pitboss.is_connected.return_value = True
@@ -190,5 +193,35 @@ async def test_a_failed_cycle_backs_the_poll_interval_off(
     mock_pitboss.ping.side_effect = TimeoutError()
     with pytest.raises(UpdateFailed):
         await coordinator._async_update_data()
+    assert coordinator.update_interval == ACTIVE_SCAN_INTERVAL
 
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
     assert coordinator.update_interval == STANDBY_SCAN_INTERVAL
+
+
+async def test_a_success_resets_the_failure_pattern(
+    coordinator: PitBossDataUpdateCoordinator, mock_pitboss: Mock
+) -> None:
+    """Isolated failures never accumulate into a backoff.
+
+    Only consecutive ones make the pattern; a success in between means the
+    grill is there and the cadence should stay whatever its state asks for.
+    """
+    coordinator._api_started = True
+    mock_pitboss.is_connected.return_value = True
+    coordinator._apply_poll_interval(StateDict(moduleIsOn=True))
+
+    mock_pitboss.ping.side_effect = TimeoutError()
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
+    assert coordinator.update_interval == ACTIVE_SCAN_INTERVAL
+
+    mock_pitboss.ping.side_effect = None
+    mock_pitboss.get_state.return_value = StateDict(moduleIsOn=True)
+    await coordinator._async_update_data()
+
+    mock_pitboss.ping.side_effect = TimeoutError()
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
+    assert coordinator.update_interval == ACTIVE_SCAN_INTERVAL

@@ -7,7 +7,12 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 from homeassistant.const import (
     CONF_DEVICE_ID,
     CONF_HOST,
@@ -21,6 +26,7 @@ from pytboss.exceptions import NotConnectedError, RPCError, Unauthorized
 
 from .const import (
     ALL_PROTOCOLS,
+    CONF_ENABLE_REMOTE_START,
     DEFAULT_PROTOCOL,
     DOMAIN,
     LOGGER,
@@ -82,6 +88,11 @@ def _models_on_board(control_board: str) -> list[str]:
 
 class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
     """Config flow for PitBoss."""
+
+    @staticmethod
+    def async_get_options_flow(config_entry: ConfigEntry) -> PitBossOptionsFlow:
+        """Return the options flow handler."""
+        return PitBossOptionsFlow()
 
     VERSION = 1
     MINOR_VERSION = 3
@@ -260,4 +271,35 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
         host = reconfigure_entry.data.get(CONF_HOST, "")
         return await self._show_more_info_form(
             "reconfigure", model, password, protocol, host
+        )
+
+
+class PitBossOptionsFlow(OptionsFlow):
+    """Options for PitBoss.
+
+    The first options flow in this integration, added because remote start
+    needs somewhere to be turned on deliberately rather than being available
+    by default. Built as one field so anything else that wants an option --
+    #277's temperature unit, the polling intervals from #351 -- extends this
+    rather than introducing a second flow.
+    """
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Manage the options."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_ENABLE_REMOTE_START,
+                        default=self.config_entry.options.get(
+                            CONF_ENABLE_REMOTE_START, False
+                        ),
+                    ): bool,
+                }
+            ),
         )

@@ -85,6 +85,28 @@
           "description": "The new password. Leave empty to remove it, which leaves the grill accepting commands from anyone who can reach it. Note the app has its own reset procedure for a forgotten password; removing it here works by setting an empty one, which the firmware treats as no password."
         }
       }
+    },
+    "start_grill": {
+      "name": "Start grill",
+      "description": "Lights the grill remotely. Disabled unless \"Allow starting the grill remotely\" is enabled in the integration options. Only start a pellet grill you have prepared: the lid open and the burn pot clear of unburned pellets.",
+      "fields": {
+        "device_id": {
+          "name": "Grill",
+          "description": "The grill to light."
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "enable_remote_start": "Allow starting the grill remotely"
+        },
+        "data_description": {
+          "enable_remote_start": "Lets the pitboss.start_grill action light the grill. Only turn this on if you accept starting a fire in an appliance nobody may be standing next to."
+        }
+      }
     }
   }
 }

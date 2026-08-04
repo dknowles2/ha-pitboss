@@ -11,10 +11,24 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from pytboss.exceptions import Unauthorized
 
-from .const import DOMAIN, LOGGER
+from .const import CONF_ENABLE_REMOTE_START, DOMAIN, LOGGER
 from .coordinator import PitBossDataUpdateCoordinator
 
 SERVICE_SET_GRILL_PASSWORD = "set_grill_password"
+SERVICE_START_GRILL = "start_grill"
+
+# Conditions that make lighting the grill a bad idea. The board would likely
+# refuse or fail anyway, but failing here says why.
+BLOCKING_ERRORS = {
+    "noPellets": "the hopper reports no pellets",
+    "highTempErr": "the grill reports a high temperature error",
+    "erL": "the grill reports an ignition (ErL) error",
+    "fanErr": "the grill reports a fan error",
+    "motorErr": "the grill reports an auger error",
+    "hotErr": "the grill reports an igniter error",
+}
+
+START_GRILL_SCHEMA = vol.Schema({vol.Required(ATTR_DEVICE_ID): cv.string})
 
 SET_GRILL_PASSWORD_SCHEMA = vol.Schema(
     {
@@ -78,9 +92,45 @@ async def _async_set_grill_password(hass: HomeAssistant, call: ServiceCall) -> N
     LOGGER.info("Grill password %s", "removed" if not new_password else "updated")
 
 
+async def _async_start_grill(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Light the grill, if the user has deliberately allowed it."""
+    coordinator, entry = _coordinator_for_device(hass, call.data[ATTR_DEVICE_ID])
+
+    if not entry.options.get(CONF_ENABLE_REMOTE_START, False):
+        raise ServiceValidationError(
+            "Remote start is disabled. Enable it in the integration options "
+            "first, and only if you accept lighting the grill without "
+            "standing next to it."
+        )
+
+    if not coordinator.api.is_connected():
+        raise HomeAssistantError("The grill is not connected.")
+
+    data = coordinator.data or {}
+    if data.get("moduleIsOn"):
+        raise HomeAssistantError("The grill is already on.")
+    for key, reason in BLOCKING_ERRORS.items():
+        if data.get(key):
+            raise HomeAssistantError(f"Refusing to start: {reason}.")
+
+    LOGGER.warning(
+        "Lighting the grill remotely. Make sure the lid is open and the burn "
+        "pot is clear of unburned pellets."
+    )
+    await coordinator.api.turn_grill_on()
+    await coordinator.async_request_refresh()
+
+
 @callback
 def async_register_services(hass: HomeAssistant) -> None:
     """Register PitBoss services."""
+
+    async def handle_start_grill(call: ServiceCall) -> None:
+        await _async_start_grill(hass, call)
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_START_GRILL, handle_start_grill, schema=START_GRILL_SCHEMA
+    )
 
     async def handle_set_grill_password(call: ServiceCall) -> None:
         await _async_set_grill_password(hass, call)
