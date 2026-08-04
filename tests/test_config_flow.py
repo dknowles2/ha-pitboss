@@ -61,6 +61,33 @@ async def test_user_flow_shows_more_info_form(hass: HomeAssistant) -> None:
     assert result["step_id"] == "more_info"
 
 
+async def test_user_input_is_normalized(hass: HomeAssistant) -> None:
+    """A pasted lowercase or padded ID must not abort a supported grill.
+
+    Real IDs are the uppercase advertised name, and the board lookup is
+    case-sensitive -- " pbl-abc123 " used to hard-abort with unknown_grill.
+    """
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_DEVICE_ID: "  pbl-abc123  "}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "more_info"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_MODEL: "PBV4PS2",
+            CONF_PASSWORD: "",
+            CONF_PROTOCOL: PROTOCOL_WSS,
+        },
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_DEVICE_ID] == "PBL-ABC123"
+
+
 async def test_user_flow_creates_entry(hass: HomeAssistant) -> None:
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}

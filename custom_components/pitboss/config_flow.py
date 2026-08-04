@@ -81,7 +81,11 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
                 data_schema=vol.Schema({vol.Required(CONF_DEVICE_ID): str}),
             )
 
-        self._device_id = user_input[CONF_DEVICE_ID]
+        # Typed by hand, so normalized: real device IDs are the uppercase
+        # advertised name (prefix + MAC-derived hex), and the board lookup
+        # behind the next step compares names case-sensitively -- a pasted
+        # " pbl-3b22cd " aborted the flow for a fully supported grill.
+        self._device_id = user_input[CONF_DEVICE_ID].strip().upper()
         await self.async_set_unique_id(self._device_id.lower())
         self._abort_if_unique_id_configured()
         return await self.async_step_more_info()
