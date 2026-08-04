@@ -121,6 +121,17 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
         # since there is no entry yet whose setup could have warmed the
         # cache.
         models = await self.hass.async_add_executor_job(_models_on_board, control_board)
+        # Reconfigure mirrors the tolerance setup already has: an entry from
+        # the board-remap era can hold a model that was never sold under the
+        # advertised prefix, and `async_setup_entry` deliberately keeps those
+        # working by falling back to by-name resolution. Without this, that
+        # same entry hits a hard `unknown_grill` abort here (unknown prefix),
+        # or a model list its own stored model is not in -- so its owner
+        # could not re-save a working configuration, and the only
+        # submittable choices switched the entry onto a different board's
+        # parsing routines.
+        if isinstance(model, str) and model not in models:
+            models = [model, *models]
         if not models:
             return self.async_abort(
                 reason="unknown_grill",
