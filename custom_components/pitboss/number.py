@@ -79,6 +79,7 @@ class TargetProbeTemperature(BaseEntity, RestoreNumber):
         label = probe_label(coordinator.has_mpc, entity_description.probe_number)
         self._attr_name = f"{label} target"
         self._pending_value: int | None = None
+        self._pending_unit: str | None = None
         self._cancel_settle: CALLBACK_TYPE | None = None
 
     async def async_added_to_hass(self) -> None:
@@ -145,8 +146,11 @@ class TargetProbeTemperature(BaseEntity, RestoreNumber):
 
     @callback
     def _handle_coordinator_update(self) -> None:
+        # A unit change invalidates the held number; see the climate entity
+        # for the reasoning. The grill's own target wins either way.
         if self._pending_value is not None and (
-            self.coordinator.probe_target(self.entity_description.probe_number)
+            self.coordinator.grill_unit != self._pending_unit
+            or self.coordinator.probe_target(self.entity_description.probe_number)
             == self._pending_value
         ):
             self._pending_value = None
@@ -159,6 +163,7 @@ class TargetProbeTemperature(BaseEntity, RestoreNumber):
             self.entity_description.probe_number, target
         )
         self._pending_value = target
+        self._pending_unit = self.coordinator.grill_unit
         # Siblings read the coordinator too -- the target-reached sensor
         # follows the grill rather than this pending value.
         self.coordinator.async_update_listeners()

@@ -255,6 +255,42 @@ async def test_the_setpoint_holds_until_the_grill_confirms_it(
 
 
 @pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_a_unit_change_invalidates_the_held_setpoint(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """225 held from a Fahrenheit set must not be shown as 225 C.
+
+    If the grill's unit flips inside the settle window, the held number is
+    meaningless in the new unit; the grill's own report wins immediately
+    rather than at the end of the window.
+    """
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data(
+        {"moduleIsOn": True, "isFahrenheit": True, "grillSetTemp": 250}
+    )
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        "climate",
+        "set_temperature",
+        {"entity_id": ENTITY_ID, "temperature": 300},
+        blocking=True,
+    )
+
+    coordinator.async_set_updated_data(
+        {"moduleIsOn": True, "isFahrenheit": False, "grillSetTemp": 121}
+    )
+    await hass.async_block_till_done()
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    # 121 C converted for the imperial-unit test HA, not the stale 300.
+    assert state.attributes["temperature"] != 300.0
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
 async def test_an_unconfirmed_setpoint_expires_with_the_settle_window(
     hass: HomeAssistant,
     mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],

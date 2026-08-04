@@ -76,6 +76,8 @@ RECIPE_ENTITY_DESCRIPTIONS = (
         key="recipeStep",
         name="Recipe Step",
         icon="mdi:format-list-numbered",
+        # A step index, not a measurement, for the same reason as above.
+        state_class=None,
     ),
 )
 
