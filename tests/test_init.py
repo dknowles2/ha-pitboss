@@ -11,6 +11,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.pitboss.const import (
     ACTIVE_SCAN_INTERVAL,
+    CONF_ENABLE_REMOTE_START,
     DOMAIN,
     PROTOCOL_BLE,
     PROTOCOL_WSS,
@@ -169,6 +170,28 @@ async def test_connect_ble_timeout_raises_not_ready(
         await hass.async_block_till_done()
 
     assert entry.state is ConfigEntryState.SETUP_RETRY
+
+
+async def test_changing_a_live_option_does_not_reload_the_entry(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """Every current option is read live, so saving one must not reload.
+
+    A reload is not free: on Bluetooth it waits for the grill to advertise
+    again, so flipping a toggle while the grill was asleep took the whole
+    integration down until the grill next woke up.
+    """
+    entry = await mock_add_config_entry()
+    coordinator_before = hass.data[DOMAIN][entry.entry_id]
+
+    hass.config_entries.async_update_entry(
+        entry, options={CONF_ENABLE_REMOTE_START: True}
+    )
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert hass.data[DOMAIN][entry.entry_id] is coordinator_before
 
 
 async def test_unload_entry_stops_api(
