@@ -81,7 +81,11 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
                 data_schema=vol.Schema({vol.Required(CONF_DEVICE_ID): str}),
             )
 
-        self._device_id = user_input[CONF_DEVICE_ID]
+        # Typed by hand, so normalized: real device IDs are the uppercase
+        # advertised name (prefix + MAC-derived hex), and the board lookup
+        # behind the next step compares names case-sensitively -- a pasted
+        # " pbl-3b22cd " aborted the flow for a fully supported grill.
+        self._device_id = user_input[CONF_DEVICE_ID].strip().upper()
         await self.async_set_unique_id(self._device_id.lower())
         self._abort_if_unique_id_configured()
         return await self.async_step_more_info()
@@ -117,6 +121,17 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
         # since there is no entry yet whose setup could have warmed the
         # cache.
         models = await self.hass.async_add_executor_job(_models_on_board, control_board)
+        # Reconfigure mirrors the tolerance setup already has: an entry from
+        # the board-remap era can hold a model that was never sold under the
+        # advertised prefix, and `async_setup_entry` deliberately keeps those
+        # working by falling back to by-name resolution. Without this, that
+        # same entry hits a hard `unknown_grill` abort here (unknown prefix),
+        # or a model list its own stored model is not in -- so its owner
+        # could not re-save a working configuration, and the only
+        # submittable choices switched the entry onto a different board's
+        # parsing routines.
+        if isinstance(model, str) and model not in models:
+            models = [model, *models]
         if not models:
             return self.async_abort(
                 reason="unknown_grill",
