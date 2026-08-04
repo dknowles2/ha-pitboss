@@ -108,6 +108,27 @@ async def test_probe_native_value_and_unit(
 
 
 @pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_probe_absent_unit_flag_reads_as_fahrenheit(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """Without isFahrenheit the probe value must be declared Fahrenheit.
+
+    Declaring Celsius made Home Assistant convert a raw 165 into 329 F for
+    the status-frame-only window.
+    """
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data({"p1Temp": 165})
+    await hass.async_block_till_done()
+
+    state = hass.states.get("sensor.mygrill_mpc")
+    assert state is not None
+    assert state.state == "165"
+    assert state.attributes["unit_of_measurement"] == "\u00b0F"
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
 async def test_recipe_sensor_availability(
     hass: HomeAssistant,
     mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
