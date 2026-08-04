@@ -23,22 +23,26 @@ dependency is updated.
 
 - **No account, no app.** The integration talks to the grill itself. It never signs in to a PitBoss account and never uses the vendor's mobile app.
 - **Automatic discovery.** Power on your grill and it's discovered automatically over Bluetooth; manual setup by device ID is also supported.
-- **Two connection protocols.** Bluetooth (`ble`) or WebSocket (`wss`, the default), chosen at setup and changeable later via reconfigure. See [Connection protocols](#connection-protocols) — they are not equivalent, and one of them is not local.
+- **Two ways to connect.** **Bluetooth** or **Cloud** (the default), chosen at setup and changeable later via reconfigure. See [How it connects](#how-it-connects) — they are not equivalent, and one of them is not local.
 - **Reconfigurable, and it asks rather than gives up.** Change the model, password, or protocol without deleting the integration. If the grill starts rejecting the password, the integration asks you to re-enter it instead of retrying forever.
 - **Adapts to your grill.** The light, primer motor, recipe sensors, probe count, probe naming, and per-probe targets are all created from what your model and control board declare — not assumed.
 - **Polls faster when it matters.** Updates arrive quickly while the grill is running and back off in standby.
 - **Safety first.** The integration cannot turn the grill on remotely. You can monitor it and turn it off.
 
-### Connection protocols
+### How it connects
 
-| | Reaches the grill via | Needs internet |
+| Setting | Reaches the grill via | Needs internet |
 | --- | --- | --- |
-| `ble` | Bluetooth, directly | No |
-| `wss` (default) | `socket.dansonscorp.com`, the vendor's relay | **Yes** |
+| **Bluetooth** | Bluetooth, directly | No |
+| **Cloud** (default) | `socket.dansonscorp.com`, PitBoss's servers | **Yes** |
 
-**`wss` is not a local connection.** Despite being described as "WiFi", it connects outbound to Dansons' servers, which relay to your grill. It is the default because it is the more reliable of the two — Bluetooth range and adapter quirks cause most connection problems — but if you want no cloud in the path, choose `ble`.
+**Cloud is not a local connection**, despite reaching the grill over your WiFi. Your grill connects outbound to PitBoss's servers and Home Assistant talks to it through them. It is the default because it is the more reliable of the two — Bluetooth range and adapter quirks cause most connection problems — but if you want nothing in the path, choose Bluetooth.
+
+Neither option signs in to a PitBoss account, and no grill data is sent anywhere Home Assistant chooses; Cloud uses the same relay the grill already talks to on its own.
 
 A genuinely local option exists in the grill's firmware and is being added to [pytboss](https://github.com/dknowles2/pytboss); it is not wired up here yet, and it does not work on every grill.
+
+(In diagnostics and stored configuration these still appear as `ble` and `wss`, which is what the grill protocol calls them.)
 
 **This integration will set up the following platforms:**
 
@@ -64,7 +68,7 @@ A genuinely local option exists in the grill's firmware and is being added to [p
 - **Binary sensor (errors and state):** Probe, startup, high-temperature, fan, igniter, auger and no-pellets errors, plus live fan, igniter and auger state.
 - **Select (`Grill temperature unit`):** Switches the unit the *grill's own panel* uses. This does not change how Home Assistant displays temperatures — that follows your Home Assistant unit system.
 - **Button (`Restart controller`):** Restarts the WiFi controller, the usual fix when it stops responding.
-- **Button (`Request fast updates`):** Asks the grill to push status every 5 seconds for the next 5 minutes. Does nothing unless the grill is on, and nothing on any path but the relay (`wss`) one, since that is where those pushes go.
+- **Button (`Request fast updates`):** Asks the grill to push status every 5 seconds for the next 5 minutes. Does nothing unless the grill is on, and nothing unless you are connected via Cloud, since that is where those pushes go.
 - **Sensor (`Firmware version`, `Controller uptime`, `Controller free memory`):** Diagnostics, read on a slower cadence than grill state.
 - **Switch (`Module power`):** Turns the grill off. Stays available and reports `off` when the grill is off, rather than disappearing.
 - **Switch (`Prime`):** Runs the auger primer motor, on models that support it.
@@ -99,8 +103,8 @@ communicate with it. No PitBoss account is needed either way.
 
 If your grill isn't discovered automatically, you can add it manually by entering its
 device ID. You'll then choose your exact model and, optionally, a connection password
-and whether to connect over Bluetooth (`ble`) or the vendor relay (`wss`) — see
-[Connection protocols](#connection-protocols) for what that choice means.
+and whether to connect over **Bluetooth** or the **Cloud** — see
+[How it connects](#how-it-connects) for what that choice means.
 
 Already set up? You can change the model, password, or connection protocol at any time
 via the integration's "Reconfigure" option, without needing to remove and re-add it.

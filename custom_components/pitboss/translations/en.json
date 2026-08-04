@@ -22,12 +22,12 @@
         "data": {
           "model": "Model",
           "password": "Grill password",
-          "protocol": "Connection protocol"
+          "protocol": "Connection"
         },
         "data_description": {
           "model": "The model is needed to properly communicate with your grill",
           "password": "The password for your grill, NOT your PitBoss account",
-          "protocol": "The protocol to use to connect to your grill."
+          "protocol": "Bluetooth talks to the grill directly. Cloud connects through PitBoss's servers, so it needs internet, but it is not limited by Bluetooth range."
         }
       },
       "reconfigure": {
@@ -35,12 +35,12 @@
         "data": {
           "model": "Model",
           "password": "Grill password",
-          "protocol": "Connection protocol"
+          "protocol": "Connection"
         },
         "data_description": {
           "model": "The model is needed to properly communicate with your grill",
           "password": "The password for your grill, NOT your PitBoss account",
-          "protocol": "The protocol to use to connect to your grill."
+          "protocol": "Bluetooth talks to the grill directly. Cloud connects through PitBoss's servers, so it needs internet, but it is not limited by Bluetooth range."
         }
       },
       "reauth_confirm": {
@@ -55,8 +55,8 @@
   "selector": {
     "protocol": {
       "options": {
-        "ble": "Bluetooth (local)",
-        "wss": "WebSocket (cloud)"
+        "ble": "Bluetooth",
+        "wss": "Cloud"
       }
     }
   },
