@@ -13,11 +13,18 @@ from homeassistant.components.climate.const import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
-from homeassistant.core import HomeAssistant
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_call_later
 from homeassistant.util.unit_conversion import TemperatureConverter
 
-from .const import DEFAULT_MAX_TEMP, DEFAULT_MIN_TEMP, DOMAIN, LOGGER
+from .const import (
+    DEFAULT_MAX_TEMP,
+    DEFAULT_MIN_TEMP,
+    DOMAIN,
+    LOGGER,
+    MCU_SETTLE_SECONDS,
+)
 from .coordinator import PitBossDataUpdateCoordinator
 from .entity import BaseEntity
 
@@ -50,6 +57,22 @@ class GrillClimate(BaseEntity, ClimateEntity):
             name="Grill temperature",
         )
         self._attr_unique_id = f"{self.entity_description.key}_{entry_unique_id}"
+        self._pending_target: float | None = None
+        self._cancel_settle: CALLBACK_TYPE | None = None
+
+    async def async_added_to_hass(self) -> None:
+        """Register the one removal callback this entity needs."""
+        await super().async_added_to_hass()
+        # Registered once rather than per set: `async_on_remove` only
+        # appends, so re-registering would grow the list for the life of
+        # the entity.
+        self.async_on_remove(self._cancel_pending_settle)
+
+    @callback
+    def _cancel_pending_settle(self) -> None:
+        if self._cancel_settle is not None:
+            self._cancel_settle()
+            self._cancel_settle = None
 
     @property
     def _accepted_setpoints(self) -> list[float]:
@@ -113,16 +136,61 @@ class GrillClimate(BaseEntity, ClimateEntity):
 
     @property
     def target_temperature(self) -> float | None:
+        """The grill's setpoint, or the one just asked for.
+
+        Shows what was asked until the grill confirms it: the board wipes
+        its cached status the moment it forwards a command to the MCU, so
+        the next poll still carries the old setpoint and the slider would
+        appear to snap back. The select and the probe targets already work
+        this way; the climate card was the one control that did not.
+        """
+        if self._pending_target is not None:
+            return self._pending_target
         if (data := self.coordinator.data) and (
             temp := data.get("grillSetTemp")
         ) is not None:
             return float(temp)
         return None
 
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        if self._pending_target is not None:
+            reported = (self.coordinator.data or {}).get("grillSetTemp")
+            if reported is not None and float(reported) == self._pending_target:
+                self._pending_target = None
+        super()._handle_coordinator_update()
+
     async def async_set_temperature(self, **kwargs) -> None:
         if (temp := kwargs.get(ATTR_TEMPERATURE)) is None:
             return
-        await self.coordinator.api.set_grill_temperature(temp)
+        # Snapped here as well as in pytboss -- deliberately the same
+        # arithmetic -- so what is held and shown is the value the board
+        # will actually report, not the one it will silently correct.
+        wanted = float(temp)
+        if accepted := self._accepted_setpoints:
+            asked = wanted
+            wanted = min(accepted, key=lambda value: abs(value - asked))
+        await self.coordinator.api.set_grill_temperature(int(wanted))
+        self._pending_target = wanted
+        self.async_write_ha_state()
+        # The MCU reports back within a couple of seconds; an immediate
+        # refresh would only read the cleared status. A second set inside
+        # the window replaces the timer rather than queueing another.
+        self._cancel_pending_settle()
+        self._cancel_settle = async_call_later(
+            self.hass, MCU_SETTLE_SECONDS, self._async_confirm
+        )
+
+    async def _async_confirm(self, _now) -> None:
+        self._cancel_settle = None
+        await self.coordinator.async_request_refresh()
+        # One settle window is all the pending value is for. If the refresh
+        # confirmed it, `_handle_coordinator_update` has already cleared it;
+        # if the grill did not take it, follow the grill rather than assert
+        # a value it will never report.
+        if self._pending_target is not None:
+            self._pending_target = None
+            self.async_write_ha_state()
 
     async def async_turn_off(self) -> None:
         """Turn off the grill."""
