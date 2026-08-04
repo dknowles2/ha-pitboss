@@ -9,7 +9,7 @@ from homeassistant.helpers import device_registry as dr
 from pytboss.exceptions import Unauthorized
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.pitboss.const import DOMAIN
+from custom_components.pitboss.const import CONF_ENABLE_REMOTE_START, DOMAIN
 
 pytestmark = pytest.mark.parametrize("model", ["PBV4PS2"])
 
@@ -136,3 +136,92 @@ async def test_a_rejected_password_offers_reauth(
     assert entry.data[CONF_PASSWORD] == "asdfasdf"
     flows = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
     assert [f for f in flows if f["context"].get("source") == "reauth"]
+
+
+async def test_start_grill_refuses_unless_enabled(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """Off by default. Lighting a fire should be a deliberate choice."""
+    entry = await mock_add_config_entry()
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data({"moduleIsOn": False})
+    await hass.async_block_till_done()
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN, "start_grill", {"device_id": _device_id(hass)}, blocking=True
+        )
+
+    mock_pitboss.turn_grill_on.assert_not_awaited()
+
+
+async def test_start_grill_lights_the_grill(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    entry = await mock_add_config_entry()
+    hass.config_entries.async_update_entry(
+        entry, options={CONF_ENABLE_REMOTE_START: True}
+    )
+    await hass.async_block_till_done()
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data({"moduleIsOn": False})
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        DOMAIN, "start_grill", {"device_id": _device_id(hass)}, blocking=True
+    )
+
+    mock_pitboss.turn_grill_on.assert_awaited_once_with()
+
+
+@pytest.mark.parametrize(
+    "error", ["noPellets", "highTempErr", "erL", "fanErr", "motorErr", "hotErr"]
+)
+async def test_start_grill_refuses_on_an_error(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+    error: str,
+) -> None:
+    """Every flag that means starting is a bad idea, not a sample of them."""
+    entry = await mock_add_config_entry()
+    hass.config_entries.async_update_entry(
+        entry, options={CONF_ENABLE_REMOTE_START: True}
+    )
+    await hass.async_block_till_done()
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data({"moduleIsOn": False, error: True})
+    await hass.async_block_till_done()
+
+    with pytest.raises(HomeAssistantError):
+        await hass.services.async_call(
+            DOMAIN, "start_grill", {"device_id": _device_id(hass)}, blocking=True
+        )
+
+    mock_pitboss.turn_grill_on.assert_not_awaited()
+
+
+async def test_start_grill_refuses_when_already_on(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    entry = await mock_add_config_entry()
+    hass.config_entries.async_update_entry(
+        entry, options={CONF_ENABLE_REMOTE_START: True}
+    )
+    await hass.async_block_till_done()
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data({"moduleIsOn": True})
+    await hass.async_block_till_done()
+
+    with pytest.raises(HomeAssistantError):
+        await hass.services.async_call(
+            DOMAIN, "start_grill", {"device_id": _device_id(hass)}, blocking=True
+        )
+
+    mock_pitboss.turn_grill_on.assert_not_awaited()

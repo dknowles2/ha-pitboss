@@ -64,3 +64,6 @@ MCU_SETTLE_SECONDS = 6
 The board wipes its cached status the moment it forwards a command to the
 MCU, so the next poll still carries the old value and an entity that read it
 straight back would appear to snap to the previous setting."""
+
+# Remote start is off unless the user turns it on in the integration options.
+CONF_ENABLE_REMOTE_START = "enable_remote_start"
