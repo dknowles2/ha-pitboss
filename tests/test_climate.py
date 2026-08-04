@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+from datetime import timedelta
 from math import floor
 from typing import cast
 from unittest.mock import Mock
@@ -7,11 +8,15 @@ import pytest
 from conftest import get_entity
 from homeassistant.components.climate.const import HVACAction, HVACMode
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
 from pytboss.grills import StateDict
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 
 from custom_components.pitboss.climate import GrillClimate
-from custom_components.pitboss.const import DOMAIN
+from custom_components.pitboss.const import DOMAIN, MCU_SETTLE_SECONDS
 from custom_components.pitboss.coordinator import PitBossDataUpdateCoordinator
 
 ENTITY_ID = "climate.mygrill_grill_temperature"
@@ -163,7 +168,105 @@ async def test_set_temperature(
         {"entity_id": ENTITY_ID, "temperature": 275},
         blocking=True,
     )
-    mock_pitboss.set_grill_temperature.assert_awaited_once_with(275)
+    # PBV4PS2's board takes setpoints in tens; 275 is not on its list. The
+    # entity snaps with the same arithmetic pytboss does, so what is sent --
+    # and shown -- is the value the board will actually report.
+    mock_pitboss.set_grill_temperature.assert_awaited_once_with(270)
+
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.attributes["temperature"] == 270.0
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_the_setpoint_holds_until_the_grill_confirms_it(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """The board wipes its status when it forwards a command to the MCU.
+
+    So the poll right after a set still carries the old setpoint, and the
+    slider snapped back to it. The asked-for value holds until the grill
+    reports it -- or until the settle window ends, after which the grill's
+    own answer wins, whatever it is.
+    """
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data(
+        {"moduleIsOn": True, "isFahrenheit": True, "grillSetTemp": 250}
+    )
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        "climate",
+        "set_temperature",
+        {"entity_id": ENTITY_ID, "temperature": 300},
+        blocking=True,
+    )
+
+    # A poll lands still carrying the old setpoint; the asked-for one holds.
+    coordinator.async_set_updated_data(
+        {"moduleIsOn": True, "isFahrenheit": True, "grillSetTemp": 250}
+    )
+    await hass.async_block_till_done()
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.attributes["temperature"] == 300.0
+
+    # The grill reports the new setpoint; from here it is the source again.
+    coordinator.async_set_updated_data(
+        {"moduleIsOn": True, "isFahrenheit": True, "grillSetTemp": 300}
+    )
+    await hass.async_block_till_done()
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.attributes["temperature"] == 300.0
+
+    coordinator.async_set_updated_data(
+        {"moduleIsOn": True, "isFahrenheit": True, "grillSetTemp": 250}
+    )
+    await hass.async_block_till_done()
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.attributes["temperature"] == 250.0
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_an_unconfirmed_setpoint_expires_with_the_settle_window(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """If the grill never takes the value, the entity stops asserting it."""
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data(
+        {"moduleIsOn": True, "isFahrenheit": True, "grillSetTemp": 250}
+    )
+    await hass.async_block_till_done()
+    mock_pitboss.get_state.reset_mock()
+
+    await hass.services.async_call(
+        "climate",
+        "set_temperature",
+        {"entity_id": ENTITY_ID, "temperature": 300},
+        blocking=True,
+    )
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.attributes["temperature"] == 300.0
+
+    async_fire_time_changed(
+        hass, dt_util.utcnow() + timedelta(seconds=MCU_SETTLE_SECONDS + 1)
+    )
+    await hass.async_block_till_done()
+
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.attributes["temperature"] == 250.0
+    # The window also asks the grill again rather than waiting out the poll.
+    assert mock_pitboss.get_state.await_count >= 1
 
 
 @pytest.mark.parametrize("model", ["PBV4PS2"])
