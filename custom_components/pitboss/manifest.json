@@ -24,6 +24,10 @@
     },
     {
       "connectable": false,
+      "local_name": "PBC2-*"
+    },
+    {
+      "connectable": false,
       "local_name": "PBD-*"
     },
     {
@@ -44,7 +48,15 @@
     },
     {
       "connectable": false,
+      "local_name": "PBL3-*"
+    },
+    {
+      "connectable": false,
       "local_name": "PBM-*"
+    },
+    {
+      "connectable": false,
+      "local_name": "PBM2-*"
     },
     {
       "connectable": false,
@@ -60,7 +72,7 @@
     },
     {
       "connectable": false,
-      "local_name": "PBX1-*"
+      "local_name": "PBV2-*"
     }
   ],
   "codeowners": [

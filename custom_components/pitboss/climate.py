@@ -58,6 +58,7 @@ class GrillClimate(BaseEntity, ClimateEntity):
         )
         self._attr_unique_id = f"{self.entity_description.key}_{entry_unique_id}"
         self._pending_target: float | None = None
+        self._pending_unit: str | None = None
         self._cancel_settle: CALLBACK_TYPE | None = None
 
     async def async_added_to_hass(self) -> None:
@@ -158,9 +159,15 @@ class GrillClimate(BaseEntity, ClimateEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         if self._pending_target is not None:
-            reported = (self.coordinator.data or {}).get("grillSetTemp")
-            if reported is not None and float(reported) == self._pending_target:
+            # A unit change invalidates the number outright: 225 held from a
+            # Fahrenheit set must not be presented as 225 C for the rest of
+            # the settle window. The grill's own report wins immediately.
+            if self.temperature_unit != self._pending_unit:
                 self._pending_target = None
+            else:
+                reported = (self.coordinator.data or {}).get("grillSetTemp")
+                if reported is not None and float(reported) == self._pending_target:
+                    self._pending_target = None
         super()._handle_coordinator_update()
 
     async def async_set_temperature(self, **kwargs) -> None:
@@ -175,6 +182,7 @@ class GrillClimate(BaseEntity, ClimateEntity):
             wanted = min(accepted, key=lambda value: abs(value - asked))
         await self.coordinator.api.set_grill_temperature(int(wanted))
         self._pending_target = wanted
+        self._pending_unit = self.temperature_unit
         self.async_write_ha_state()
         # The MCU reports back within a couple of seconds; an immediate
         # refresh would only read the cleared status. A second set inside

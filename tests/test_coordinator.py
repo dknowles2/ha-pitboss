@@ -301,3 +301,25 @@ async def test_a_success_resets_the_failure_pattern(
     with pytest.raises(UpdateFailed):
         await coordinator._async_update_data()
     assert coordinator.update_interval == ACTIVE_SCAN_INTERVAL
+
+
+async def test_a_restored_target_is_seeded_in_the_grills_current_unit(
+    coordinator: PitBossDataUpdateCoordinator, mock_pitboss: Mock
+) -> None:
+    """Captured as 74 while the grill spoke Celsius, seeded after a flip.
+
+    The held value is unit-fixed (Fahrenheit, like the grill's own store),
+    so it seeds as 165 F -- not as a raw 74 reinterpreted in the new unit.
+    """
+    coordinator.async_set_updated_data(StateDict(isFahrenheit=False))
+    coordinator.note_restored_target(2, 74)
+
+    # The panel is flipped to Fahrenheit before the grill is lit.
+    coordinator.async_set_updated_data(StateDict(isFahrenheit=True))
+    assert coordinator.probe_target(2) == 165
+
+    coordinator._api_started = True
+    mock_pitboss.is_connected.return_value = True
+    mock_pitboss.get_state.return_value = StateDict(moduleIsOn=True, isFahrenheit=True)
+    await coordinator._async_update_data()
+    mock_pitboss.set_probe_target.assert_awaited_once_with(2, 165)

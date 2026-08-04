@@ -183,15 +183,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload when the options change.
+RELOAD_OPTIONS: frozenset[str] = frozenset()
+"""Options whose change requires reloading the entry.
 
-    The remote-start toggle is read live, so this is not strictly needed for
-    it -- but an options flow without a listener is a trap for the next
-    option added, and Home Assistant fixes some entity properties (a display
-    unit, for one) when the entity is registered.
-    """
-    await hass.config_entries.async_reload(entry.entry_id)
+Empty because every option that exists today -- the remote-start toggle --
+is read live where it is used. An option that fixes something at entity
+registration (a display unit, a polling interval baked into the
+coordinator) belongs in this set when it is added.
+
+The set exists because reloading unconditionally has a real cost: on
+Bluetooth a reload waits for the grill to advertise again, so flipping a
+toggle while the grill was asleep took the whole integration down --
+entities and all -- until the grill next woke up. The listener stays
+registered so a future option cannot forget to think about this; it just
+reloads only when the option asks for it.
+"""
+
+
+async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload when an option that needs a reload changes."""
+    if RELOAD_OPTIONS:
+        await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

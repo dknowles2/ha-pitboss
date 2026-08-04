@@ -138,6 +138,83 @@ async def test_a_rejected_password_offers_reauth(
     assert [f for f in flows if f["context"].get("source") == "reauth"]
 
 
+async def test_start_grill_offers_reauth_on_a_rejected_password(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """The ignite command is authenticated like every other write.
+
+    A rejection gets the same answer set_grill_password already gives:
+    a clean error and the reauth flow, instead of an unknown error with
+    a traceback and no way to correct the password.
+    """
+    entry = await mock_add_config_entry()
+    hass.config_entries.async_update_entry(
+        entry, options={CONF_ENABLE_REMOTE_START: True}
+    )
+    mock_pitboss.is_connected.return_value = True
+    mock_pitboss.turn_grill_on.side_effect = Unauthorized("Unauthorized", 401)
+
+    with pytest.raises(HomeAssistantError):
+        await hass.services.async_call(
+            DOMAIN,
+            "start_grill",
+            {"device_id": _device_id(hass)},
+            blocking=True,
+        )
+    await hass.async_block_till_done()
+
+    flows = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+    assert [f for f in flows if f["context"].get("source") == "reauth"]
+
+
+async def test_start_grill_wraps_other_failures(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """A failed ignite is a service error, not an unknown error."""
+    entry = await mock_add_config_entry()
+    hass.config_entries.async_update_entry(
+        entry, options={CONF_ENABLE_REMOTE_START: True}
+    )
+    mock_pitboss.is_connected.return_value = True
+    mock_pitboss.turn_grill_on.side_effect = TimeoutError("no answer")
+
+    with pytest.raises(HomeAssistantError, match="Could not start the grill"):
+        await hass.services.async_call(
+            DOMAIN,
+            "start_grill",
+            {"device_id": _device_id(hass)},
+            blocking=True,
+        )
+
+
+async def test_a_real_grill_that_is_not_loaded_is_named_as_such(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """An entry mid-retry is the right target in the wrong state.
+
+    "Not a PitBoss grill" sent people debugging their automation instead
+    of their grill.
+    """
+    entry = await mock_add_config_entry()
+    device_id = _device_id(hass)
+    # The grill goes away: setup cleanup pops the coordinator, the device
+    # registry entry stays.
+    hass.data[DOMAIN].pop(entry.entry_id)
+
+    with pytest.raises(HomeAssistantError, match="not loaded"):
+        await hass.services.async_call(
+            DOMAIN,
+            "set_grill_password",
+            {"device_id": device_id, CONF_PASSWORD: "x"},
+            blocking=True,
+        )
+
+
 async def test_start_grill_refuses_unless_enabled(
     hass: HomeAssistant,
     mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
