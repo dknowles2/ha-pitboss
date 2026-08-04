@@ -536,6 +536,100 @@ async def test_local_protocol_creates_the_entry(hass: HomeAssistant) -> None:
     assert result["data"][CONF_HOST] == "192.168.1.50"
 
 
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_reconfigure_with_the_same_host_does_not_need_the_grill(
+    hass: HomeAssistant,
+    mock_pitboss: Mock,
+) -> None:
+    """A password change on a local entry must work with the grill off.
+
+    The stored address proved itself when it was set; validation exists to
+    catch a new one. Re-checking it here made every reconfigure of a local
+    entry fail with cannot_connect while the grill was powered down.
+    """
+    entry = MockConfigEntry(
+        title="title",
+        domain=DOMAIN,
+        data={
+            CONF_DEVICE_ID: "PBL-ABC123",
+            CONF_MODEL: "PBV4PS2",
+            CONF_PASSWORD: "oldpw",
+            CONF_PROTOCOL: PROTOCOL_LOCAL,
+            CONF_HOST: "192.168.1.50",
+        },
+        unique_id="pbl-abc123",
+    )
+    entry.add_to_hass(hass)
+
+    with (
+        patch(
+            "custom_components.pitboss.config_flow.http.HttpConnection",
+            autospec=True,
+        ) as mock_http,
+        patch("pytboss.http.HttpConnection", autospec=True) as mock_http_setup,
+    ):
+        # The grill is off: any probe would fail. It must not be probed.
+        mock_http.return_value.connect.side_effect = NotConnectedError("off")
+        mock_http_setup.return_value.connect.side_effect = NotConnectedError("off")
+        mock_pitboss.get_state.return_value = {}
+
+        result = await entry.start_reconfigure_flow(hass)
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_MODEL: "PBV4PS2",
+                CONF_PASSWORD: "newpw",
+                CONF_PROTOCOL: PROTOCOL_LOCAL,
+                CONF_HOST: "192.168.1.50",
+            },
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_PASSWORD] == "newpw"
+    mock_http.return_value.connect.assert_not_awaited()
+
+
+async def test_reconfigure_with_a_new_host_still_validates(
+    hass: HomeAssistant,
+) -> None:
+    """Changing the address is exactly what validation exists for."""
+    entry = MockConfigEntry(
+        title="title",
+        domain=DOMAIN,
+        data={
+            CONF_DEVICE_ID: "PBL-ABC123",
+            CONF_MODEL: "PBV4PS2",
+            CONF_PASSWORD: "oldpw",
+            CONF_PROTOCOL: PROTOCOL_LOCAL,
+            CONF_HOST: "192.168.1.50",
+        },
+        unique_id="pbl-abc123",
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.pitboss.config_flow.http.HttpConnection",
+        autospec=True,
+    ) as mock_http:
+        mock_http.return_value.connect.side_effect = NotConnectedError("nothing")
+
+        result = await entry.start_reconfigure_flow(hass)
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_MODEL: "PBV4PS2",
+                CONF_PASSWORD: "oldpw",
+                CONF_PROTOCOL: PROTOCOL_LOCAL,
+                CONF_HOST: "192.168.1.99",
+            },
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {CONF_HOST: "cannot_connect"}
+
+
 async def test_a_host_is_not_required_for_other_protocols(hass: HomeAssistant) -> None:
     """The field is shown always but only means anything for the local one."""
     result = await hass.config_entries.flow.async_init(

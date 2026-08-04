@@ -267,7 +267,19 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
             self._abort_if_unique_id_mismatch()
             protocol = user_input[CONF_PROTOCOL]
             host = user_input.get(CONF_HOST, "").strip()
-            if errors := await _validate_local(protocol, host):
+            # A password or model change on a local entry must not require
+            # the grill to be on: the stored address already proved itself
+            # when it was set, and validation exists to catch a *new* one.
+            # Only a changed host, or a switch onto the local protocol,
+            # is re-checked.
+            unchanged_local = (
+                protocol == reconfigure_entry.data.get(CONF_PROTOCOL)
+                and bool(host)
+                and host == reconfigure_entry.data.get(CONF_HOST, "")
+            )
+            if not unchanged_local and (
+                errors := await _validate_local(protocol, host)
+            ):
                 return await self._show_more_info_form(
                     "reconfigure",
                     model=user_input[CONF_MODEL],
