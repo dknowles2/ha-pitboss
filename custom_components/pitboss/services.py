@@ -50,11 +50,23 @@ def _coordinator_for_device(
     device = dr.async_get(hass).async_get(device_id)
     if device is None:
         raise ServiceValidationError(f"Unknown device: {device_id}")
+    ours = False
     for entry_id in device.config_entries:
-        coordinator = hass.data.get(DOMAIN, {}).get(entry_id)
         entry = hass.config_entries.async_get_entry(entry_id)
-        if coordinator is not None and entry is not None:
+        if entry is None or entry.domain != DOMAIN:
+            continue
+        ours = True
+        coordinator = hass.data.get(DOMAIN, {}).get(entry_id)
+        if coordinator is not None:
             return coordinator, entry
+    if ours:
+        # The right target in the wrong state, which is not the caller's
+        # fault -- an entry mid-retry because the grill is off, or disabled.
+        # "Not a PitBoss grill" here sent people debugging their automation
+        # instead of their grill.
+        raise HomeAssistantError(
+            "The grill is not loaded yet; it may be off or still connecting."
+        )
     raise ServiceValidationError(f"Device {device_id} is not a PitBoss grill")
 
 
@@ -117,7 +129,19 @@ async def _async_start_grill(hass: HomeAssistant, call: ServiceCall) -> None:
         "Lighting the grill remotely. Make sure the lid is open and the burn "
         "pot is clear of unburned pellets."
     )
-    await coordinator.api.turn_grill_on()
+    try:
+        await coordinator.api.turn_grill_on()
+    except Unauthorized as ex:
+        # The same condition and the same answer as set_grill_password: the
+        # password Home Assistant holds is not the grill's, retrying cannot
+        # fix it, and the reauth flow is the only thing that can.
+        entry.async_start_reauth(hass)
+        raise HomeAssistantError(
+            "The grill rejected the password Home Assistant holds. "
+            "Enter the current one and try again."
+        ) from ex
+    except Exception as ex:
+        raise HomeAssistantError(f"Could not start the grill: {ex}") from ex
     await coordinator.async_request_refresh()
 
 
