@@ -45,6 +45,45 @@ merge in order — a PR that reads a new attribute is blocked on the release
 *and* on the bump landing first, and neither CI nor GitHub can express that.
 Say so in the PR.
 
+## Update the docs in the PR that changes the behaviour
+
+`README.md` is what users read to decide whether this integration does what
+they want. It is part of the change, not follow-up work — a PR that adds an
+entity and leaves the README alone is incomplete, and the gap is invisible in
+review because nothing fails.
+
+Update it in the same PR when a change:
+
+- **adds, removes or renames an entity**, or changes when one is created —
+  the platform table and the entity list both name specific entities;
+- **adds a platform** — the table lists platforms, and `PLATFORMS` in
+  `__init__.py` is the list to check it against;
+- **adds or changes an action** — see the Actions section;
+- **changes what a user sees or has to do**: setup and reconfigure steps,
+  repair flows, a new option, polling behaviour they would notice;
+- **changes something the README states as a fact** — connection protocols,
+  what is and is not local, or the safety position on remote start.
+
+Two things to check rather than assume:
+
+```sh
+# Every platform the integration actually sets up.
+grep -A 12 'PLATFORMS: list\[Platform\]' custom_components/pitboss/__init__.py
+# Every entity name a user will see.
+grep -rn '_attr_name' custom_components/pitboss/
+```
+
+The README drifted a whole release behind once — it described probe targets
+as existing for probes 1 and 2 only, listed six platforms when eight were
+registered, and called the `wss` protocol "local WiFi" when it connects
+outbound to `socket.dansonscorp.com`. Each of those was correct when written,
+and none of them failed a test.
+
+`CONTRIBUTING.md` and `REVIEW.md` change far less often; touch them when the
+workflow or the repo boundary genuinely moves, not routinely.
+
+`docs/SUPPORTED_GRILLS.md` is generated — see below.
+
 ## Gotchas
 
 - **Generated files — don't hand-edit**:
