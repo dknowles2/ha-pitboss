@@ -205,7 +205,8 @@ class GrillClimate(BaseEntity, ClimateEntity):
             await self.async_turn_off()
         elif hvac_mode == HVACMode.HEAT:
             LOGGER.warning(
-                "For safety reasons, the grill cannot be turned on remotely."
+                "Not lighting the grill from here. Use the pitboss.start_grill "
+                "action, which has to be enabled in the integration options first."
             )
 
     @property
