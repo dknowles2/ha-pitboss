@@ -17,6 +17,7 @@ from homeassistant.const import (
 )
 from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
 from pytboss import grills, http
+from pytboss.exceptions import NotConnectedError, RPCError, Unauthorized
 
 from .const import (
     ALL_PROTOCOLS,
@@ -43,9 +44,20 @@ async def _validate_local(protocol: str, host: str) -> dict[str, str] | None:
     conn = http.HttpConnection(host)
     try:
         await conn.connect()
-    except Exception:  # noqa: BLE001
+    except Unauthorized:
+        # Something is there and speaking RPC, but turned us away. Only some
+        # Mongoose builds refuse at the HTTP layer, so this is rare -- but
+        # "no grill answered" would be a wrong answer, not a vague one.
+        LOGGER.debug("Grill at %s rejected the connection", host)
+        return {CONF_HOST: "invalid_auth"}
+    except NotConnectedError:
         LOGGER.debug("No grill answering RPC at %s", host)
         return {CONF_HOST: "cannot_connect"}
+    except RPCError:
+        # Answered, but not with JSON-RPC. A mistyped address landing on a
+        # router's admin page does this: 200, and HTML.
+        LOGGER.debug("Something at %s answered, but not as a grill", host)
+        return {CONF_HOST: "not_a_grill"}
     finally:
         await conn.disconnect()
     return None

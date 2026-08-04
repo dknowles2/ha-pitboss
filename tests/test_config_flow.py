@@ -15,7 +15,7 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from pytboss import grills
-from pytboss.exceptions import NotConnectedError
+from pytboss.exceptions import NotConnectedError, RPCError, Unauthorized
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.pitboss.const import DOMAIN, PROTOCOL_LOCAL, PROTOCOL_WSS
@@ -350,6 +350,47 @@ async def test_local_protocol_checks_the_grill_answers(hass: HomeAssistant) -> N
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {CONF_HOST: "cannot_connect"}
+
+
+@pytest.mark.parametrize(
+    ("raised", "expected"),
+    [
+        (NotConnectedError("nothing there"), "cannot_connect"),
+        (Unauthorized("Unauthorized", 401), "invalid_auth"),
+        (RPCError("Expected a JSON object, got str"), "not_a_grill"),
+    ],
+)
+async def test_local_protocol_distinguishes_why_it_failed(
+    hass: HomeAssistant, raised: Exception, expected: str
+) -> None:
+    """The three ways this goes wrong are three different things to say.
+
+    Nothing listening, a grill that refused us, and something at that address
+    that is not a grill at all -- a mistyped IP landing on a router's admin
+    page answers 200 and HTML.
+    """
+    with patch(
+        "custom_components.pitboss.config_flow.http.HttpConnection", autospec=True
+    ) as mock_http:
+        mock_http.return_value.connect.side_effect = raised
+
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_DEVICE_ID: "PBL-ABC123"}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_MODEL: "PBV4PS2",
+                CONF_PROTOCOL: PROTOCOL_LOCAL,
+                CONF_HOST: "192.168.1.50",
+            },
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {CONF_HOST: expected}
 
 
 async def test_local_protocol_creates_the_entry(hass: HomeAssistant) -> None:

@@ -57,7 +57,9 @@
     },
     "error": {
       "host_required": "A host is required for a local connection.",
-      "cannot_connect": "No grill answered at that address. Not every grill has the local interface enabled, and it cannot be turned on from here."
+      "cannot_connect": "No grill answered at that address. Not every grill has the local interface enabled, and it cannot be turned on from here.",
+      "invalid_auth": "A grill answered at that address but refused the connection.",
+      "not_a_grill": "Something answered at that address, but it is not a grill."
     }
   },
   "selector": {
