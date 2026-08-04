@@ -561,16 +561,11 @@ async def test_reconfigure_with_the_same_host_does_not_need_the_grill(
     )
     entry.add_to_hass(hass)
 
-    with (
-        patch(
-            "custom_components.pitboss.config_flow.http.HttpConnection",
-            autospec=True,
-        ) as mock_http,
-        patch("pytboss.http.HttpConnection", autospec=True) as mock_http_setup,
-    ):
+    # One patch covers both the flow's validator and the reload's setup:
+    # config_flow's `http` *is* the pytboss.http module object.
+    with patch("pytboss.http.HttpConnection", autospec=True) as mock_http:
         # The grill is off: any probe would fail. It must not be probed.
         mock_http.return_value.connect.side_effect = NotConnectedError("off")
-        mock_http_setup.return_value.connect.side_effect = NotConnectedError("off")
         mock_pitboss.get_state.return_value = {}
 
         result = await entry.start_reconfigure_flow(hass)
