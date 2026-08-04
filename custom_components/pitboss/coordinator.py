@@ -106,8 +106,17 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
 
     @property
     def grill_unit(self) -> str:
-        """The unit the grill is currently working in."""
-        if (data := self.data) and not data.get("isFahrenheit"):
+        """The unit the grill is currently working in.
+
+        Absent defaults to Fahrenheit, matching pytboss's `_is_fahrenheit` --
+        the default the command path snaps setpoints with. The key is only
+        emitted by the temperatures frame on most boards, so a state built
+        from a status frame alone (a poll landing right after the firmware
+        wipes the other half) is non-empty without it; reading that as
+        Celsius meant presenting one unit while commands were snapped in the
+        other.
+        """
+        if (data := self.data) and not data.get("isFahrenheit", True):
             return UnitOfTemperature.CELSIUS
         return UnitOfTemperature.FAHRENHEIT
 
