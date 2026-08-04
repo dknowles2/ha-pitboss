@@ -4,7 +4,12 @@ import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import UpdateFailed
-from pytboss.exceptions import GrillUnavailable, NotConnectedError, RPCError
+from pytboss.exceptions import (
+    GrillUnavailable,
+    NotConnectedError,
+    RPCError,
+    Unauthorized,
+)
 from pytboss.grills import StateDict
 
 from custom_components.pitboss.const import (
@@ -183,16 +188,27 @@ async def test_a_poll_reconnects_a_transport_with_no_reconnect_of_its_own(
     assert data == {"grillTemp": 225}
 
 
+@pytest.mark.parametrize(
+    "raised",
+    [
+        # Still nothing there; an HTTP-auth build turning the probe away;
+        # something at the address answering with non-JSON. All reachable
+        # from `HttpConnection.connect()`, and none is reauth's to fix.
+        NotConnectedError("still nothing there"),
+        Unauthorized("Unauthorized", 401),
+        RPCError("Expected a JSON object, got str"),
+    ],
+)
 async def test_a_failed_reconnect_is_a_failed_cycle_not_a_crash(
-    hass: HomeAssistant, mock_pitboss: Mock
+    hass: HomeAssistant, mock_pitboss: Mock, raised: Exception
 ) -> None:
-    """A grill still away raises `NotConnectedError` from the probe."""
+    """Whatever the probe fails with, the cycle fails cleanly."""
     coordinator = PitBossDataUpdateCoordinator(
         hass, DeviceInfo(), mock_pitboss, reconnect_on_poll=True
     )
     coordinator._api_started = True
     mock_pitboss.is_connected.return_value = False
-    mock_pitboss.start.side_effect = NotConnectedError("still nothing there")
+    mock_pitboss.start.side_effect = raised
 
     with pytest.raises(UpdateFailed):
         await coordinator._async_update_data()

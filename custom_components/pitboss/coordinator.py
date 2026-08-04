@@ -288,6 +288,13 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
             # What the local HTTP transport raises when nothing answers its
             # probe; a failed reconnect is a failed cycle, not a crash.
             raise UpdateFailed("Grill not connected") from ex
+        except (Unauthorized, RPCError) as ex:
+            # The probe can also be *answered* badly: an HTTP-auth build
+            # (`rpc.auth_file`) turns it away, and something that is not a
+            # grill answers it with non-JSON. Neither is the grill password,
+            # so neither is reauth's to fix -- they land where every other
+            # failed cycle lands.
+            raise UpdateFailed(f"Grill refused the reconnect: {ex}") from ex
 
     async def _async_refresh_sys_info(self) -> None:
         """Refresh the control board's system info. Never fatal.
