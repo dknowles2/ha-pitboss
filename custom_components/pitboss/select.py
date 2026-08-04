@@ -77,7 +77,7 @@ class GrillTemperatureUnitSelect(BaseEntity, SelectEntity):
     @property
     def _reported_option(self) -> str | None:
         if data := self.coordinator.data:
-            return UNIT_FAHRENHEIT if data.get("isFahrenheit") else UNIT_CELSIUS
+            return UNIT_FAHRENHEIT if data.get("isFahrenheit", True) else UNIT_CELSIUS
         return None
 
     @property

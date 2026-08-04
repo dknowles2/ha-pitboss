@@ -27,7 +27,7 @@ dependency is updated.
 - **Reconfigurable, and it asks rather than gives up.** Change the model, password, or protocol without deleting the integration. If the grill starts rejecting the password, the integration asks you to re-enter it instead of retrying forever.
 - **Adapts to your grill.** The light, primer motor, recipe sensors, probe count, probe naming, and per-probe targets are all created from what your model and control board declare — not assumed.
 - **Polls faster when it matters.** Updates arrive quickly while the grill is running and back off in standby.
-- **Safety first.** The integration cannot turn the grill on remotely. You can monitor it and turn it off.
+- **Safety first, remote start off by default.** Out of the box the integration cannot light the grill: the power switch and climate card only ever turn it off. A deliberate opt-in in the integration options enables the `pitboss.start_grill` action -- and only that action; the switch and climate card refuse either way.
 
 ### Connection protocols
 
@@ -72,6 +72,7 @@ A genuinely local option exists in the grill's firmware and is being added to [p
 ### Actions
 
 - **`pitboss.set_grill_password`:** Sets the grill's connection password and stores it in the config entry, so the two cannot drift apart.
+- **`pitboss.start_grill`:** Lights the grill remotely. Refused unless "Allow starting the grill remotely" is enabled in the integration options, and refused while the grill is on, disconnected, or reporting an error such as an empty hopper. Only light a grill you have prepared: lid open, burn pot clear of unburned pellets.
 
 ## Installation
 

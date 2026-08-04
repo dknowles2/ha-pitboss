@@ -156,7 +156,7 @@ class ProbeSensor(BaseSensorEntity):
 
     @property
     def native_unit_of_measurement(self) -> str | None:
-        if (data := self.coordinator.data) and not data.get("isFahrenheit"):
+        if (data := self.coordinator.data) and not data.get("isFahrenheit", True):
             return UnitOfTemperature.CELSIUS
         return UnitOfTemperature.FAHRENHEIT
 
