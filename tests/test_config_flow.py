@@ -229,6 +229,93 @@ async def test_reconfigure_flow_updates_entry(
 
 
 @pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_reconfigure_keeps_a_remap_era_entry_editable(
+    hass: HomeAssistant,
+    mock_wss_conn: Mock,
+    mock_pitboss: Mock,
+) -> None:
+    """An entry whose prefix matches no board can still be re-saved.
+
+    Setup deliberately keeps such entries working by falling back to
+    by-name resolution; reconfigure used to hard-abort with unknown_grill,
+    so their owners could not change a password or protocol at all.
+    """
+    mock_pitboss.get_state.return_value = {}
+    entry = MockConfigEntry(
+        title="title",
+        domain=DOMAIN,
+        data={
+            CONF_DEVICE_ID: "mygrill",
+            CONF_MODEL: "PBV4PS2",
+            CONF_PASSWORD: "oldpw",
+            CONF_PROTOCOL: PROTOCOL_WSS,
+        },
+        unique_id="mygrill",
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reconfigure_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_MODEL: "PBV4PS2",
+            CONF_PASSWORD: "newpw",
+            CONF_PROTOCOL: PROTOCOL_WSS,
+        },
+    )
+    await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_PASSWORD] == "newpw"
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_reconfigure_offers_the_stored_model_off_its_board(
+    hass: HomeAssistant,
+    mock_wss_conn: Mock,
+    mock_pitboss: Mock,
+) -> None:
+    """A stored model missing from the advertised board stays selectable.
+
+    Without it, the form's model list did not contain the entry's own
+    model, and the only submittable choices moved the entry onto a
+    different board's parsing routines.
+    """
+    mock_pitboss.get_state.return_value = {}
+    entry = MockConfigEntry(
+        title="title",
+        domain=DOMAIN,
+        data={
+            # PBL2 is a real board, but PBV4PS2 is not sold on it.
+            CONF_DEVICE_ID: "PBL2-ABC123",
+            CONF_MODEL: "PBV4PS2",
+            CONF_PASSWORD: "oldpw",
+            CONF_PROTOCOL: PROTOCOL_WSS,
+        },
+        unique_id="pbl2-abc123",
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reconfigure_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_MODEL: "PBV4PS2",
+            CONF_PASSWORD: "oldpw",
+            CONF_PROTOCOL: PROTOCOL_WSS,
+        },
+    )
+    await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_MODEL] == "PBV4PS2"
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
 async def test_reauth_updates_the_password_and_reloads(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
