@@ -351,3 +351,31 @@ async def test_the_grill_wins_once_it_confirms(
     state = hass.states.get("number.mygrill_mpc_target")
     assert state is not None
     assert state.state == "180"
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_a_unit_change_invalidates_the_held_target(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """A target held from a Fahrenheit set is meaningless after a flip."""
+    entry = await mock_add_config_entry()
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data({"moduleIsOn": True, "isFahrenheit": True})
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        "number",
+        "set_value",
+        {"entity_id": "number.mygrill_p2_target", "value": 165},
+        blocking=True,
+    )
+
+    coordinator.async_set_updated_data(
+        {"moduleIsOn": True, "isFahrenheit": False, "p2Target": 74}
+    )
+    await hass.async_block_till_done()
+    state = hass.states.get("number.mygrill_p2_target")
+    assert state is not None
+    assert state.state != "165"

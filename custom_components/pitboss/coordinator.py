@@ -10,6 +10,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util.unit_conversion import TemperatureConverter
 from pytboss.api import PitBoss
 from pytboss.exceptions import (
     GrillUnavailable,
@@ -63,7 +64,11 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         # small at process start, which 0.0 would read as "just tried".
         self._firmware_attempted_at: float | None = None
         # What the grill is holding, and what we are holding for it. See
-        # `probe_target` for why both exist.
+        # `probe_target` for why both exist. `restored_targets` is kept in
+        # Fahrenheit regardless of the grill's unit -- the same convention
+        # as the grill's own virtual-data store -- because these values
+        # outlive unit changes: one captured as "74" while the grill spoke
+        # Celsius must not be seeded as 74 F after the panel is flipped.
         self.probe_targets: dict[int, int] = {}
         self.restored_targets: dict[int, int] = {}
         self._targets_seeded = False
@@ -122,11 +127,33 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
             return int(reported)
         if (target := self.probe_targets.get(probe_number)) is not None:
             return target
-        return self.restored_targets.get(probe_number)
+        if (held := self.restored_targets.get(probe_number)) is not None:
+            return self._from_fahrenheit(held)
+        return None
+
+    def _to_fahrenheit(self, temp: int) -> int:
+        """A grill-unit value, in the unit `restored_targets` is kept in."""
+        if self.grill_unit == UnitOfTemperature.FAHRENHEIT:
+            return temp
+        return round(
+            TemperatureConverter.convert(
+                temp, UnitOfTemperature.CELSIUS, UnitOfTemperature.FAHRENHEIT
+            )
+        )
+
+    def _from_fahrenheit(self, temp: int) -> int:
+        """A held Fahrenheit value, in the grill's current unit."""
+        if self.grill_unit == UnitOfTemperature.FAHRENHEIT:
+            return temp
+        return round(
+            TemperatureConverter.convert(
+                temp, UnitOfTemperature.FAHRENHEIT, UnitOfTemperature.CELSIUS
+            )
+        )
 
     async def async_set_probe_target(self, probe_number: int, temp: int) -> None:
-        """Set a probe's target, keeping it if the grill cannot take it yet."""
-        self.restored_targets[probe_number] = temp
+        """Set a probe's target, given in the grill's current unit."""
+        self.restored_targets[probe_number] = self._to_fahrenheit(temp)
         try:
             await self.api.set_probe_target(probe_number, temp)
         except UnsupportedOperation:
@@ -146,7 +173,7 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         and never reach the grill, which is the one case the restore exists
         for.
         """
-        self.restored_targets[probe_number] = temp
+        self.restored_targets[probe_number] = self._to_fahrenheit(temp)
         if probe_number not in self.probe_targets:
             self._targets_seeded = False
 
@@ -169,9 +196,12 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         # not know about goes over now. That is what makes setting a target on
         # a cold grill mean anything. A target the grill already has was set
         # elsewhere and wins.
-        for probe_number, temp in self.restored_targets.items():
+        for probe_number, held in self.restored_targets.items():
             if probe_number in self.probe_targets:
                 continue
+            # Converted at seeding time, into whatever unit the grill has
+            # *now* -- which may not be the unit it had at capture.
+            temp = self._from_fahrenheit(held)
             try:
                 await self.api.set_probe_target(probe_number, temp)
             except Exception as ex:  # noqa: BLE001

@@ -72,6 +72,15 @@ async def test_recipe_time_records_no_statistics(
     assert state.state == "90"
     assert "state_class" not in state.attributes
 
+    # The step index is not a measurement either.
+    coordinator.async_set_updated_data(
+        cast(StateDict, {"moduleIsOn": True, "recipeStep": 2})
+    )
+    await hass.async_block_till_done()
+    state = hass.states.get("sensor.mygrill_recipe_step")
+    assert state is not None
+    assert "state_class" not in state.attributes
+
 
 @pytest.mark.parametrize("model", ["PB2180LK"])
 async def test_recipe_sensors_absent_when_unsupported(
