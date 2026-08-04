@@ -1,5 +1,6 @@
 from collections.abc import Awaitable, Callable
 from math import floor
+from typing import cast
 from unittest.mock import Mock
 
 import pytest
@@ -86,6 +87,31 @@ async def test_current_and_target_temperature(
     assert state is not None
     assert state.attributes["current_temperature"] == 225.0
     assert state.attributes["temperature"] == 250.0
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_a_null_reading_is_unknown_not_a_crash(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """The boards put null on the wire for the no-reading sentinel (960).
+
+    The same convertTemperature routine that gives an unplugged probe its
+    None gives the chamber sensor one too. Coercing that with float() raised
+    on every state write for as long as the sensor was out.
+    """
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+
+    coordinator.async_set_updated_data(
+        cast(StateDict, {"grillTemp": None, "grillSetTemp": None, "isFahrenheit": True})
+    )
+    await hass.async_block_till_done()
+
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    assert state.attributes.get("current_temperature") is None
+    assert state.attributes.get("temperature") is None
 
 
 @pytest.mark.parametrize("model", ["PBV4PS2"])
