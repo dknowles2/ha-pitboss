@@ -61,11 +61,18 @@ async def _validate_local(protocol: str, host: str) -> dict[str, str] | None:
         # "no grill answered" would be a wrong answer, not a vague one.
         LOGGER.debug("Grill at %s rejected the connection", host)
         return {CONF_HOST: "invalid_auth"}
-    except NotConnectedError, TimeoutError:
-        # TimeoutError is caught in its own right: the transport races its
-        # own deadline against aiohttp's, and when its `asyncio.timeout`
-        # fires first the failure surfaces raw rather than as
-        # `NotConnectedError`. To the user both are "nothing answered".
+    except NotConnectedError:
+        LOGGER.debug("No grill answering RPC at %s", host)
+        return {CONF_HOST: "cannot_connect"}
+    except TimeoutError:
+        # Caught in its own right, not in a tuple with the handler above:
+        # the transport races its own deadline against aiohttp's, and when
+        # its `asyncio.timeout` fires first the failure surfaces raw rather
+        # than as `NotConnectedError`. To the user both are "nothing
+        # answered". Two handlers rather than one because `ruff format`
+        # rewrites the tuple form into PEP 758 syntax, which only Python
+        # 3.14 parses -- and this module has to import on every interpreter
+        # the supported Home Assistant floor still runs.
         LOGGER.debug("No grill answering RPC at %s", host)
         return {CONF_HOST: "cannot_connect"}
     except RPCError:
