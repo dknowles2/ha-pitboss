@@ -120,6 +120,28 @@ async def test_a_null_reading_is_unknown_not_a_crash(
 
 
 @pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_absent_unit_flag_reads_as_fahrenheit(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """A state built from a status frame alone carries no isFahrenheit.
+
+    Most boards emit the flag only in the temperatures frame. The entity
+    must default to the unit pytboss snaps commands with -- Fahrenheit --
+    or the unit shown and the unit commanded disagree for the window.
+    """
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data({"moduleIsOn": True, "grillSetTemp": 250})
+    await hass.async_block_till_done()
+
+    state = hass.states.get(ENTITY_ID)
+    assert state is not None
+    # The Fahrenheit step; the Celsius default read this as 1.0.
+    assert state.attributes["target_temp_step"] == 5.0
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
 async def test_set_temperature_noop_without_temperature_kwarg(
     hass: HomeAssistant,
     mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],

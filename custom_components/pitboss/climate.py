@@ -118,7 +118,10 @@ class GrillClimate(BaseEntity, ClimateEntity):
 
     @property
     def temperature_unit(self) -> str:
-        if (data := self.coordinator.data) and not data.get("isFahrenheit", False):
+        # Absent defaults to Fahrenheit -- the same default pytboss snaps
+        # setpoints with, so the unit shown and the unit commanded agree
+        # even on a state built from a status frame alone.
+        if (data := self.coordinator.data) and not data.get("isFahrenheit", True):
             return UnitOfTemperature.CELSIUS
         return UnitOfTemperature.FAHRENHEIT
 

@@ -39,6 +39,14 @@ async def test_reports_the_unit_the_grill_is_in(
     assert state is not None
     assert state.state == "°C"
 
+    # A state without the flag -- a status frame alone -- reads as the
+    # default the command path uses, Fahrenheit, not Celsius.
+    coordinator.async_set_updated_data({"moduleIsOn": True})
+    await hass.async_block_till_done()
+    state = hass.states.get("select.mygrill_grill_temperature_unit")
+    assert state is not None
+    assert state.state == "°F"
+
 
 async def test_selecting_switches_the_grill(
     hass: HomeAssistant,
