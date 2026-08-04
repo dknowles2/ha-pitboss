@@ -114,7 +114,7 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
             protocol = user_input.get(CONF_PROTOCOL, DEFAULT_PROTOCOL)
             host = user_input.get(CONF_HOST, "").strip()
             if errors := await _validate_local(protocol, host):
-                return self._show_more_info_form(
+                return await self._show_more_info_form(
                     "more_info",
                     model=user_input[CONF_MODEL],
                     password=user_input.get(CONF_PASSWORD, ""),
@@ -214,7 +214,7 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
             protocol = user_input[CONF_PROTOCOL]
             host = user_input.get(CONF_HOST, "").strip()
             if errors := await _validate_local(protocol, host):
-                return self._show_more_info_form(
+                return await self._show_more_info_form(
                     "reconfigure",
                     model=user_input[CONF_MODEL],
                     password=user_input.get(CONF_PASSWORD, ""),

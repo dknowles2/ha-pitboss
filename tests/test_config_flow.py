@@ -306,6 +306,7 @@ async def test_model_list_is_built_off_the_event_loop(
     assert called_on, "the model list was never built"
     assert loop_thread not in called_on
 
+
 async def test_local_protocol_requires_a_host(hass: HomeAssistant) -> None:
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
