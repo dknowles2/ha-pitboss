@@ -65,9 +65,9 @@
   "selector": {
     "protocol": {
       "options": {
-        "ble": "Bluetooth (local)",
-        "wss": "WebSocket (cloud)",
-        "local": "Local (WiFi)"
+        "ble": "Bluetooth",
+        "wss": "Cloud",
+        "local": "Local"
       }
     }
   },
