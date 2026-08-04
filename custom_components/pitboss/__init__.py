@@ -160,7 +160,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         manufacturer=MANUFACTURER,
     )
     hass.data[DOMAIN][entry.entry_id] = coordinator = PitBossDataUpdateCoordinator(
-        hass, device_info, pitboss
+        hass,
+        device_info,
+        pitboss,
+        # HTTP is request/response: no background reconnect exists, so the
+        # poll loop has to be the one to re-establish a dropped grill.
+        reconnect_on_poll=protocol == PROTOCOL_LOCAL,
     )
     try:
         await coordinator.async_config_entry_first_refresh()
