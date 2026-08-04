@@ -356,6 +356,10 @@ async def test_local_protocol_checks_the_grill_answers(hass: HomeAssistant) -> N
     ("raised", "expected"),
     [
         (NotConnectedError("nothing there"), "cannot_connect"),
+        # Raw rather than wrapped: the transport races its own deadline
+        # against aiohttp's, and when its `asyncio.timeout` fires first the
+        # failure is a bare TimeoutError, not NotConnectedError.
+        (TimeoutError(), "cannot_connect"),
         (Unauthorized("Unauthorized", 401), "invalid_auth"),
         (RPCError("Expected a JSON object, got str"), "not_a_grill"),
     ],
@@ -367,7 +371,8 @@ async def test_local_protocol_distinguishes_why_it_failed(
 
     Nothing listening, a grill that refused us, and something at that address
     that is not a grill at all -- a mistyped IP landing on a router's admin
-    page answers 200 and HTML.
+    page answers 200 and HTML. A bare timeout counts as nothing listening,
+    whichever of the transport's two deadlines fired first.
     """
     with patch(
         "custom_components.pitboss.config_flow.http.HttpConnection", autospec=True

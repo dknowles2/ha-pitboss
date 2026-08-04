@@ -27,6 +27,9 @@ from .const import (
     PROTOCOL_LOCAL,
 )
 
+VALIDATION_TIMEOUT = 10.0
+"""Seconds to wait for the local endpoint before calling the address wrong."""
+
 
 async def _validate_local(protocol: str, host: str) -> dict[str, str] | None:
     """Check that a local grill is actually reachable at `host`.
@@ -41,7 +44,9 @@ async def _validate_local(protocol: str, host: str) -> dict[str, str] | None:
         return None
     if not host:
         return {CONF_HOST: "host_required"}
-    conn = http.HttpConnection(host)
+    # A short deadline, not the transport's 30s default: this holds the form
+    # open, and a silent address is the common failure here.
+    conn = http.HttpConnection(host, timeout=VALIDATION_TIMEOUT)
     try:
         await conn.connect()
     except Unauthorized:
@@ -50,7 +55,11 @@ async def _validate_local(protocol: str, host: str) -> dict[str, str] | None:
         # "no grill answered" would be a wrong answer, not a vague one.
         LOGGER.debug("Grill at %s rejected the connection", host)
         return {CONF_HOST: "invalid_auth"}
-    except NotConnectedError:
+    except NotConnectedError, TimeoutError:
+        # TimeoutError is caught in its own right: the transport races its
+        # own deadline against aiohttp's, and when its `asyncio.timeout`
+        # fires first the failure surfaces raw rather than as
+        # `NotConnectedError`. To the user both are "nothing answered".
         LOGGER.debug("No grill answering RPC at %s", host)
         return {CONF_HOST: "cannot_connect"}
     except RPCError:
