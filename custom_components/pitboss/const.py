@@ -20,6 +20,11 @@ MANUFACTURER = NAME
 # yet. They are the two values that would become fields when it grows one.
 ACTIVE_SCAN_INTERVAL = timedelta(seconds=10)
 STANDBY_SCAN_INTERVAL = timedelta(seconds=60)
+# Consecutive failed cycles before the poll interval backs off. One failure
+# is as likely a mid-cook hiccup as a grill gone away, and backing off on it
+# turns a lost ten-second poll into a sixty-second gap in the one situation
+# where freshness matters most. Two in a row is a pattern.
+FAILURES_BEFORE_BACKOFF = 2
 # Diagnostics change slowly; no need to read them at the poll rate.
 SYS_INFO_INTERVAL = 60.0
 PROTOCOL_WSS = "wss"
