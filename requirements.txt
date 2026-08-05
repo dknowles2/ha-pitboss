@@ -7,6 +7,6 @@ pip>=26.2
 pyserial-asyncio==0.6
 pyserial==3.5
 pytboss==2026.8.5
-pytest_homeassistant_custom_component==0.13.348
+pytest_homeassistant_custom_component==0.13.351
 ruff==0.16.1
 serialx==1.8.2
