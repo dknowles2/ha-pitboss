@@ -6,12 +6,22 @@
 # is not.
 #
 # `line-length` is what `ruff format` wraps to, so CI and a local run have to
-# agree on it. `target-version` was previously unset entirely: with no
-# pyproject.toml there was no `requires-python` for ruff to infer it from, so
-# version-dependent rules had nothing to work against. 3.14 matches
-# .python-version and Home Assistant's own floor.
+# agree on it.
+#
+# `target-version` is the OLDEST Python this integration has to run on, which
+# is not the one it is developed and tested on. hacs.json admits Home
+# Assistant 2025.1.0, and HA required Python 3.12 through the 2025 series and
+# 3.13 until 2026.7 -- so a user on 2026.6 is running 3.12 or 3.13 while CI
+# (which reads .python-version) runs 3.14.
+#
+# Set to 3.14 this was actively dangerous rather than merely imprecise:
+# `ruff format` rewrote `except (A, B):` into PEP 758's `except A, B:`, which
+# is a SyntaxError before 3.14. A formatter run could therefore produce a
+# module that fails to import for most users while every check stayed green,
+# and a config_flow that cannot import breaks setup for every protocol. This
+# nearly shipped once -- see #371.
 line-length    = 88
-target-version = "py314"
+target-version = "py312"
 
 # Deliberately no `[lint] select`: ruff 0.16's default rule set is much wider
 # than the `E4, E7, E9, F` the docs describe -- it includes BLE, B, S and
