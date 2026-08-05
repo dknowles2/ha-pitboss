@@ -22,12 +22,14 @@
         "data": {
           "model": "Model",
           "password": "Grill password",
-          "protocol": "Connection protocol"
+          "protocol": "Connection protocol",
+          "host": "Host"
         },
         "data_description": {
           "model": "The model is needed to properly communicate with your grill",
           "password": "The password for your grill, NOT your PitBoss account",
-          "protocol": "The protocol to use to connect to your grill."
+          "protocol": "The protocol to use to connect to your grill.",
+          "host": "The grill's address on your network. Only used by the local connection."
         }
       },
       "reconfigure": {
@@ -35,12 +37,14 @@
         "data": {
           "model": "Model",
           "password": "Grill password",
-          "protocol": "Connection protocol"
+          "protocol": "Connection protocol",
+          "host": "Host"
         },
         "data_description": {
           "model": "The model is needed to properly communicate with your grill",
           "password": "The password for your grill, NOT your PitBoss account",
-          "protocol": "The protocol to use to connect to your grill."
+          "protocol": "The protocol to use to connect to your grill.",
+          "host": "The grill's address on your network. Only used by the local connection."
         }
       },
       "reauth_confirm": {
@@ -50,13 +54,20 @@
           "password": "Password"
         }
       }
+    },
+    "error": {
+      "host_required": "A host is required for a local connection.",
+      "cannot_connect": "No grill answered at that address. Not every grill has the local interface enabled, and it cannot be turned on from here.",
+      "invalid_auth": "A grill answered at that address but refused the connection.",
+      "not_a_grill": "Something answered at that address, but it is not a grill."
     }
   },
   "selector": {
     "protocol": {
       "options": {
-        "ble": "Bluetooth (local)",
-        "wss": "WebSocket (cloud)"
+        "ble": "Bluetooth",
+        "wss": "Cloud",
+        "local": "Local"
       }
     }
   },

@@ -4,7 +4,12 @@ import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import UpdateFailed
-from pytboss.exceptions import GrillUnavailable, NotConnectedError, RPCError
+from pytboss.exceptions import (
+    GrillUnavailable,
+    NotConnectedError,
+    RPCError,
+    Unauthorized,
+)
 from pytboss.grills import StateDict
 
 from custom_components.pitboss.const import (
@@ -154,6 +159,77 @@ async def test_on_state_update_merges_onto_previous_data(
 
     await coordinator._on_state_update({"moduleIsOn": False})
     assert coordinator.data == {"grillTemp": 225, "moduleIsOn": False}
+
+
+async def test_a_poll_reconnects_a_transport_with_no_reconnect_of_its_own(
+    hass: HomeAssistant, mock_pitboss: Mock
+) -> None:
+    """The local HTTP transport recovers only by being spoken to.
+
+    It marks itself disconnected when a request fails, and its recovery is
+    the next request -- which never came, because every cycle refused to
+    talk to a transport reporting disconnected. One blip stranded the
+    integration until a reload, on the one transport that has no other
+    reconnect path.
+    """
+    coordinator = PitBossDataUpdateCoordinator(
+        hass, DeviceInfo(), mock_pitboss, reconnect_on_poll=True
+    )
+    coordinator._api_started = True
+    mock_pitboss.is_connected.return_value = False
+    mock_pitboss.start.side_effect = lambda: setattr(
+        mock_pitboss.is_connected, "return_value", True
+    )
+    mock_pitboss.get_state.return_value = {"grillTemp": 225}
+
+    data = await coordinator._async_update_data()
+
+    mock_pitboss.start.assert_awaited_once()
+    assert data == {"grillTemp": 225}
+
+
+@pytest.mark.parametrize(
+    "raised",
+    [
+        # Still nothing there; an HTTP-auth build turning the probe away;
+        # something at the address answering with non-JSON. All reachable
+        # from `HttpConnection.connect()`, and none is reauth's to fix.
+        NotConnectedError("still nothing there"),
+        Unauthorized("Unauthorized", 401),
+        RPCError("Expected a JSON object, got str"),
+    ],
+)
+async def test_a_failed_reconnect_is_a_failed_cycle_not_a_crash(
+    hass: HomeAssistant, mock_pitboss: Mock, raised: Exception
+) -> None:
+    """Whatever the probe fails with, the cycle fails cleanly."""
+    coordinator = PitBossDataUpdateCoordinator(
+        hass, DeviceInfo(), mock_pitboss, reconnect_on_poll=True
+    )
+    coordinator._api_started = True
+    mock_pitboss.is_connected.return_value = False
+    mock_pitboss.start.side_effect = raised
+
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
+
+
+async def test_transports_that_reconnect_themselves_still_fail_fast(
+    coordinator: PitBossDataUpdateCoordinator, mock_pitboss: Mock
+) -> None:
+    """Without the opt-in, a disconnected transport is not spoken to.
+
+    Bluetooth is reconnected by the discovery callback and the websocket by
+    its own loop; calling `connect()` on those from here is not safe on the
+    pinned pytboss (a websocket mid-backoff would start a second receive
+    loop).
+    """
+    coordinator._api_started = True
+    mock_pitboss.is_connected.return_value = False
+
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
+    mock_pitboss.start.assert_not_awaited()
 
 
 async def test_a_ping_timeout_is_reported_as_a_failed_update(

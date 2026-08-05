@@ -44,8 +44,19 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         hass: HomeAssistant,
         device_info: DeviceInfo,
         api: PitBoss,
+        reconnect_on_poll: bool = False,
     ) -> None:
-        """Initialize the coordinator."""
+        """Initialize the coordinator.
+
+        `reconnect_on_poll` is for transports with no reconnect of their own.
+        Bluetooth is reconnected by the discovery callback and the websocket
+        transport by its internal loop, so for those a disconnected transport
+        fails the cycle fast and something else restores it. The local HTTP
+        transport is request/response: its recovery *is* the next request,
+        which never comes if every cycle refuses to talk to a transport that
+        reports disconnected -- one failed request would strand it until a
+        reload.
+        """
         super().__init__(
             hass=hass,
             logger=LOGGER,
@@ -55,6 +66,7 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         )
         self.device_info = device_info
         self.api = api
+        self._reconnect_on_poll = reconnect_on_poll
         self._api_started = False
         # Latest Sys.GetInfo payload from the control board.
         self.sys_info: dict = {}
@@ -311,6 +323,19 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
             self._api_started = True
         except GrillUnavailable as ex:
             raise UpdateFailed("Grill unavailable") from ex
+        except NotConnectedError as ex:
+            # What the local HTTP transport raises when nothing answers its
+            # probe; a failed reconnect is a failed cycle, not a crash.
+            raise UpdateFailed("Grill not connected") from ex
+        except RPCError as ex:
+            # The probe can also be *answered* badly: something that is not
+            # a grill answers with non-JSON, and an HTTP-auth build
+            # (`rpc.auth_file`) turns it away -- `Unauthorized` is an
+            # `RPCError`, so this handler covers both. Deliberately not
+            # reauth's to fix: that refusal is HTTP-layer auth, not the
+            # grill password. They land where every other failed cycle
+            # lands.
+            raise UpdateFailed(f"Grill refused the reconnect: {ex}") from ex
 
     async def _async_refresh_sys_info(self) -> None:
         """Refresh the control board's system info. Never fatal.
@@ -354,7 +379,19 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
             await self._start_api()
 
         if not self.api.is_connected():
-            raise UpdateFailed("Grill not connected")
+            if not self._reconnect_on_poll:
+                # Bluetooth and the websocket transport reconnect themselves;
+                # fail the cycle fast and let them.
+                raise UpdateFailed("Grill not connected")
+            # The local HTTP transport recovers only by being spoken to, and
+            # a poll is the only speaker. `connect()` is its reachability
+            # probe, so success here means connected again. Calling this for
+            # the other transports would not be safe: `connect()` on a
+            # websocket mid-backoff starts a second receive loop on the
+            # pinned pytboss (serialized upstream in pytboss#572, not yet
+            # released).
+            self.logger.debug("Reconnecting to the grill")
+            await self._start_api()
 
         try:
             await self.api.ping(timeout=10.0)

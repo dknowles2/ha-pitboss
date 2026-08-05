@@ -23,7 +23,7 @@ dependency is updated.
 
 - **No account, no app.** The integration talks to the grill itself. It never signs in to a PitBoss account and never uses the vendor's mobile app.
 - **Automatic discovery.** Power on your grill and it's discovered automatically over Bluetooth; manual setup by device ID is also supported.
-- **Two connection protocols.** Bluetooth (`ble`) or WebSocket (`wss`, the default), chosen at setup and changeable later via reconfigure. See [Connection protocols](#connection-protocols) — they are not equivalent, and one of them is not local.
+- **Three connection protocols.** Bluetooth (`ble`), the vendor's relay (`wss`, the default), or a direct local connection (`local`) for grills that support it — chosen at setup and changeable later via reconfigure. See [Connection protocols](#connection-protocols); they are not equivalent.
 - **Reconfigurable, and it asks rather than gives up.** Change the model, password, or protocol without deleting the integration. If the grill starts rejecting the password, the integration asks you to re-enter it instead of retrying forever.
 - **Adapts to your grill.** The light, primer motor, recipe sensors, probe count, probe naming, and per-probe targets are all created from what your model and control board declare — not assumed.
 - **Polls faster when it matters.** Updates arrive quickly while the grill is running and back off in standby.
@@ -35,10 +35,11 @@ dependency is updated.
 | --- | --- | --- |
 | `ble` | Bluetooth, directly | No |
 | `wss` (default) | `socket.dansonscorp.com`, the vendor's relay | **Yes** |
+| `local` | HTTP on your own network, directly | No |
 
 **`wss` is not a local connection.** Despite being described as "WiFi", it connects outbound to Dansons' servers, which relay to your grill. It is the default because it is the more reliable of the two — Bluetooth range and adapter quirks cause most connection problems — but if you want no cloud in the path, choose `ble`.
 
-A genuinely local option exists in the grill's firmware and is being added to [pytboss](https://github.com/dknowles2/pytboss); it is not wired up here yet, and it does not work on every grill.
+**`local` is the genuinely local option, but not every grill has it.** It talks to the RPC interface the grill's own firmware serves on your network — no cloud in the path and no Bluetooth range to fight. The ESP-IDF firmware line (versioned `16.x`) serves no HTTP endpoint at all, and the others serve it only when `http.enable` is set on the unit; nothing here can turn it on. The setup form checks by connecting: if no grill answers at the address you give, it says so rather than creating a broken entry.
 
 **This integration will set up the following platforms:**
 
@@ -100,7 +101,8 @@ communicate with it. No PitBoss account is needed either way.
 
 If your grill isn't discovered automatically, you can add it manually by entering its
 device ID. You'll then choose your exact model and, optionally, a connection password
-and whether to connect over Bluetooth (`ble`) or the vendor relay (`wss`) — see
+and how to connect — Bluetooth (`ble`), the vendor relay (`wss`), or the direct local
+connection (`local`), which also asks for the grill's address on your network — see
 [Connection protocols](#connection-protocols) for what that choice means.
 
 Already set up? You can change the model, password, or connection protocol at any time

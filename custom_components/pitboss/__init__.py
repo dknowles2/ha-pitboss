@@ -13,6 +13,7 @@ from homeassistant.components.bluetooth.match import LOCAL_NAME
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_DEVICE_ID,
+    CONF_HOST,
     CONF_MODEL,
     CONF_PASSWORD,
     CONF_PROTOCOL,
@@ -23,7 +24,7 @@ from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.typing import ConfigType
-from pytboss import api, ble, grills, wss
+from pytboss import api, ble, grills, http, wss
 from pytboss.exceptions import InvalidGrill
 from pytboss.transport import Transport
 
@@ -33,6 +34,7 @@ from .const import (
     LOGGER,
     MANUFACTURER,
     PROTOCOL_BLE,
+    PROTOCOL_LOCAL,
     PROTOCOL_WSS,
 )
 from .coordinator import PitBossDataUpdateCoordinator
@@ -112,6 +114,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         conn = wss.WebSocketConnection(
             device_id, session=async_get_clientsession(hass), loop=hass.loop
         )
+    elif protocol == PROTOCOL_LOCAL:
+        conn = http.HttpConnection(
+            entry.data[CONF_HOST], session=async_get_clientsession(hass), loop=hass.loop
+        )
     elif protocol == PROTOCOL_BLE:
         conn = await _connect_ble(hass, entry, device_id)
     else:
@@ -154,7 +160,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         manufacturer=MANUFACTURER,
     )
     hass.data[DOMAIN][entry.entry_id] = coordinator = PitBossDataUpdateCoordinator(
-        hass, device_info, pitboss
+        hass,
+        device_info,
+        pitboss,
+        # HTTP is request/response: no background reconnect exists, so the
+        # poll loop has to be the one to re-establish a dropped grill.
+        reconnect_on_poll=protocol == PROTOCOL_LOCAL,
     )
     try:
         await coordinator.async_config_entry_first_refresh()
