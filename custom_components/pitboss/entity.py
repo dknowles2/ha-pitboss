@@ -10,7 +10,6 @@ from .coordinator import PitBossDataUpdateCoordinator
 class BaseEntity(CoordinatorEntity[PitBossDataUpdateCoordinator]):
     """Base entity class."""
 
-    _device_id: str
     _attr_has_entity_name = True
 
     def __init__(

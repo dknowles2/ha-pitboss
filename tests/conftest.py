@@ -32,6 +32,22 @@ def get_entity[EntityT: Entity](
     raise AssertionError(f"{platform_domain} platform not found")
 
 
+@pytest.fixture(autouse=True, scope="session")
+def mock_bluetooth_adapter_history() -> Generator[None]:
+    """Stub out the BlueZ advertisement history so the suite runs off Linux.
+
+    pytest-homeassistant-custom-component forces bluetooth_adapters onto its
+    Linux backend for determinism, and patches that backend's refresh() and
+    adapters -- but not its history property. Setting up the bluetooth
+    component reads that property, which goes through dbus_fast, a Linux-only
+    dependency. Where it is absent the import falls back to
+    unpack_variants = None and the read raises TypeError, so every test that
+    sets up the integration fails while CI, which runs on Linux, stays green.
+    """
+    with patch("bluetooth_adapters.systems.linux.LinuxAdapters.history", {}):
+        yield
+
+
 @pytest.fixture(autouse=True)
 def mock_bluetooth(enable_bluetooth):
     """Auto mock bluetooth."""

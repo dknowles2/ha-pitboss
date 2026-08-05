@@ -16,15 +16,8 @@ from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_call_later
-from homeassistant.util.unit_conversion import TemperatureConverter
 
-from .const import (
-    DEFAULT_MAX_TEMP,
-    DEFAULT_MIN_TEMP,
-    DOMAIN,
-    LOGGER,
-    MCU_SETTLE_SECONDS,
-)
+from .const import DOMAIN, LOGGER, MCU_SETTLE_SECONDS
 from .coordinator import PitBossDataUpdateCoordinator
 from .entity import BaseEntity
 
@@ -32,7 +25,7 @@ from .entity import BaseEntity
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
-    """Setup binary_sensor platform."""
+    """Setup climate platform."""
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     assert entry.unique_id is not None
     async_add_entities([GrillClimate(coordinator, entry.unique_id)])
@@ -99,23 +92,18 @@ class GrillClimate(BaseEntity, ClimateEntity):
 
     @property
     def min_temp(self) -> float:
-        if accepted := self._accepted_setpoints:
-            return min(accepted)
-        from_unit = UnitOfTemperature.FAHRENHEIT
-        to_unit = self.temperature_unit
-        if (min_temp := self.coordinator.api.spec.min_temp) is None:
-            min_temp = DEFAULT_MIN_TEMP
-        return TemperatureConverter.convert(min_temp, from_unit, to_unit)
+        # The setpoint list, with nothing behind it. A fallback on
+        # `spec.min_temp` used to sit here, but every catalogued grill has
+        # increments in both units, and a grill without them cannot even be
+        # constructed -- `Grill.from_dict` raises parsing the empty
+        # increment string long before an entity exists. The bounds come
+        # from the same list that feeds `allowed_setpoints` and the snap,
+        # so all three always agree.
+        return min(self._accepted_setpoints)
 
     @property
     def max_temp(self) -> float:
-        if accepted := self._accepted_setpoints:
-            return max(accepted)
-        from_unit = UnitOfTemperature.FAHRENHEIT
-        to_unit = self.temperature_unit
-        if (max_temp := self.coordinator.api.spec.max_temp) is None:
-            max_temp = DEFAULT_MAX_TEMP
-        return TemperatureConverter.convert(max_temp, from_unit, to_unit)
+        return max(self._accepted_setpoints)
 
     @property
     def temperature_unit(self) -> str:
