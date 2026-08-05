@@ -11,8 +11,9 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntityDescription,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory
+from homeassistant.const import EntityCategory, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, probe_label
@@ -120,7 +121,29 @@ async def async_setup_entry(
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities: list[BinarySensorEntity] = []
     assert entry.unique_id is not None
+    board = coordinator.api.spec.control_board
+    registry = er.async_get(hass)
     for entity_description in ENTITY_DESCRIPTIONS:
+        # Not every board reports every flag: PBM and PBM2 have no `erL` in
+        # either parsing routine, so their "Startup error" sensor was created
+        # and then sat unknown for the life of the entry. Asked of the board
+        # rather than gated on a list of names here, so a definitions refresh
+        # that adds or drops a field is followed without a change in this
+        # repo.
+        if not board.emits(entity_description.key):
+            # The affected grills are the ones already running, so the row is
+            # already in the registry. Home Assistant keeps a row whose entity
+            # stops being created and renders it as unavailable, which would
+            # turn "permanently unknown" into "permanently unavailable" for
+            # exactly the users this is meant to help. Removed here so the
+            # entity goes away on the next start rather than having to be
+            # deleted by hand.
+            unique_id = f"{entity_description.key}_{entry.unique_id}"
+            if stale := registry.async_get_entity_id(
+                Platform.BINARY_SENSOR, DOMAIN, unique_id
+            ):
+                registry.async_remove(stale)
+            continue
         entities.append(BinarySensor(coordinator, entry.unique_id, entity_description))
     entities.append(ConnectivitySensor(coordinator, entry.unique_id))
     entities.append(MeatProbeControlSensor(coordinator, entry.unique_id))
