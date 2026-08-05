@@ -5,6 +5,7 @@ from unittest.mock import Mock
 import pytest
 from conftest import get_entity
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.pitboss.binary_sensor import (
@@ -295,3 +296,41 @@ async def test_a_flag_the_board_never_reports_gets_no_entity(
     # The rest still arrive: this must not thin out the platform.
     assert hass.states.get(_entity_id("Fan error")) is not None
     assert hass.states.get(_entity_id("Igniter error")) is not None
+
+
+@pytest.mark.parametrize("model", ["PB850CS2"])
+async def test_the_stale_row_from_an_earlier_release_is_removed(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """The boards this affects are the ones already running.
+
+    Their `startup_error` row is already in the registry, and Home Assistant
+    keeps a row whose entity stops being created -- rendering it as
+    unavailable rather than dropping it, with manual deletion the only way
+    out. Not creating the entity alone would turn "permanently unknown" into
+    "permanently unavailable" for exactly the installs this is meant to fix,
+    so the row is removed too. Seeding it is the only way this path runs.
+    """
+    registry = er.async_get(hass)
+    mock_config_entry.add_to_hass(hass)
+    stale = registry.async_get_or_create(
+        "binary_sensor",
+        DOMAIN,
+        f"erL_{mock_config_entry.unique_id}",
+        suggested_object_id="mygrill_startup_error",
+        config_entry=mock_config_entry,
+    )
+    assert registry.async_get(stale.entity_id) is not None
+
+    await mock_add_config_entry()
+
+    assert registry.async_get(stale.entity_id) is None
+    # A flag the board does report keeps its row.
+    assert (
+        registry.async_get_entity_id(
+            "binary_sensor", DOMAIN, f"fanErr_{mock_config_entry.unique_id}"
+        )
+        is not None
+    )
