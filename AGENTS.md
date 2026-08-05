@@ -99,11 +99,13 @@ workflow or the repo boundary genuinely moves, not routinely.
   twice, and both times it produced frames read at the wrong offsets. If a
   model cannot be added, the fix is upstream in pytboss. REVIEW.md has both
   cases in full.
-- **The test suite often cannot run locally.** `homeassistant.setup` needs the
-  `bluetooth` component, which fails to start in some environments; the symptom
-  is *every* test in a file failing on `bluetooth_adapters`, including ones the
-  change does not touch. That is environmental, and CI is then the real check —
-  say so rather than implying the tests were run.
+- **The test suite runs everywhere, including macOS.** `homeassistant.setup`
+  pulls in the `bluetooth` component, which reads BlueZ advertisement history
+  through the Linux-only `dbus_fast`. `mock_bluetooth_adapter_history` in
+  `tests/conftest.py` stubs that read out. If *every* test in a file starts
+  failing on `bluetooth_adapters`, including ones the change does not touch,
+  that fixture has stopped covering what upstream now reads — widen it rather
+  than writing the failure off as environmental.
 
 ## Before committing
 
