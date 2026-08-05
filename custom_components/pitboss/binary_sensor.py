@@ -120,7 +120,16 @@ async def async_setup_entry(
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities: list[BinarySensorEntity] = []
     assert entry.unique_id is not None
+    board = coordinator.api.spec.control_board
     for entity_description in ENTITY_DESCRIPTIONS:
+        # Not every board reports every flag: PBM and PBM2 have no `erL` in
+        # either parsing routine, so their "Startup error" sensor was created
+        # and then sat unknown for the life of the entry. Asked of the board
+        # rather than gated on a list of names here, so a definitions refresh
+        # that adds or drops a field is followed without a change in this
+        # repo.
+        if not board.emits(entity_description.key):
+            continue
         entities.append(BinarySensor(coordinator, entry.unique_id, entity_description))
     entities.append(ConnectivitySensor(coordinator, entry.unique_id))
     entities.append(MeatProbeControlSensor(coordinator, entry.unique_id))
