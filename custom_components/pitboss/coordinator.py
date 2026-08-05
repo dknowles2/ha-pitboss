@@ -385,11 +385,14 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
                 raise UpdateFailed("Grill not connected")
             # The local HTTP transport recovers only by being spoken to, and
             # a poll is the only speaker. `connect()` is its reachability
-            # probe, so success here means connected again. Calling this for
-            # the other transports would not be safe: `connect()` on a
-            # websocket mid-backoff starts a second receive loop on the
-            # pinned pytboss (serialized upstream in pytboss#572, not yet
-            # released).
+            # probe, so success here means connected again. Still gated on
+            # the protocol rather than done for everyone: the other two
+            # transports own their reconnect, and a poll reaching into that
+            # races whatever they already have in flight. It used to be
+            # unsafe outright -- `connect()` on a websocket mid-backoff
+            # started a second receive loop -- which pytboss#572 fixed by
+            # serializing the lifecycle, so this is now a question of who
+            # owns reconnection rather than of corruption.
             self.logger.debug("Reconnecting to the grill")
             await self._start_api()
 
