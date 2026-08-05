@@ -87,7 +87,7 @@ type PBSensorEntityDescription = (
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_devices: AddEntitiesCallback
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
     """Setup sensor platform."""
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
@@ -104,7 +104,7 @@ async def async_setup_entry(
             entities.append(
                 RecipeSensor(coordinator, entry.unique_id, entity_description)
             )
-    async_add_devices(entities)
+    async_add_entities(entities)
 
 
 class BaseSensorEntity(BaseEntity, SensorEntity):

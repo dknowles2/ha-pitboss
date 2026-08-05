@@ -16,13 +16,13 @@ from .entity import BaseEntity
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_devices: AddEntitiesCallback
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
     """Setup light platform."""
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     assert entry.unique_id is not None
     if coordinator.api.spec.has_lights:
-        async_add_devices([GrillLight(coordinator, entry.unique_id)])
+        async_add_entities([GrillLight(coordinator, entry.unique_id)])
 
 
 class GrillLight(BaseEntity, LightEntity):
