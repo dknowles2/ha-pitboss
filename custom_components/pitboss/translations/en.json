@@ -1,6 +1,7 @@
 {
   "title": "PitBoss",
   "config": {
+    "flow_title": "{name}",
     "abort": {
       "already_configured": "Grill is already configured",
       "reconfigure_successful": "Re-configuration was successful",

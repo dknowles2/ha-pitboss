@@ -1,3 +1,5 @@
+import json
+import pathlib
 import threading
 from unittest.mock import Mock, patch
 
@@ -639,3 +641,40 @@ async def test_a_host_is_not_required_for_other_protocols(hass: HomeAssistant) -
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_HOST] == ""
+
+
+async def test_the_discovery_row_names_the_grill(hass: HomeAssistant) -> None:
+    """A discovered grill must be identifiable before it is set up.
+
+    `async_step_bluetooth` sets a `name` title placeholder, but nothing
+    consumed it: with no `flow_title` in the translations the frontend falls
+    back to the integration's own title, so two grills waiting to be
+    configured were two rows both reading "PitBoss". Asserted together
+    because the placeholder and the template that renders it are only
+    correct as a pair -- either one alone silently produces the same
+    fallback.
+    """
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_BLUETOOTH},
+        data=_bluetooth_service_info("PBL-ABC123"),
+    )
+    flow = next(
+        f
+        for f in hass.config_entries.flow.async_progress()
+        if f["flow_id"] == result["flow_id"]
+    )
+    placeholders = flow["context"]["title_placeholders"]
+    assert placeholders == {"name": "PBL-ABC123"}
+
+    translations = json.loads(
+        (
+            pathlib.Path(__file__).parent.parent
+            / "custom_components"
+            / "pitboss"
+            / "translations"
+            / "en.json"
+        ).read_text()
+    )
+    flow_title = translations["config"]["flow_title"]
+    assert flow_title.format(**placeholders) == "PBL-ABC123"
