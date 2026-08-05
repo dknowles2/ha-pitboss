@@ -22,9 +22,9 @@ from custom_components.pitboss.coordinator import PitBossDataUpdateCoordinator
 ENTITY_ID = "climate.mygrill_grill_temperature"
 
 
-# PB2180LK publishes no min_temp, so this used to fall back to the
-# DEFAULT_MIN_TEMP constant. Its setpoint list starts at 160, which is the
-# board's real floor, so that is what the entity reports now.
+# PB2180LK publishes min_temp as "Smoke" (None in the spec), which is why a
+# fallback used to exist here. The bounds come from the setpoint list alone
+# now -- its list starts at 160, the board's real floor.
 @pytest.mark.parametrize("model,want", [("PBV4PS2", 130), ("PB2180LK", 160)])
 async def test_min_temp(
     hass: HomeAssistant,
