@@ -42,7 +42,7 @@ PROBE_DESCRIPTIONS = (
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_devices: AddEntitiesCallback
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
     """Setup number platform."""
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
@@ -56,7 +56,7 @@ async def async_setup_entry(
         if description.probe_number <= probe_count
     ]
     if entities:
-        async_add_devices(entities)
+        async_add_entities(entities)
 
 
 class TargetProbeTemperature(BaseEntity, RestoreNumber):

@@ -19,15 +19,15 @@ from .entity import BaseEntity
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_devices: AddEntitiesCallback
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
-    """Setup sensor platform."""
+    """Setup switch platform."""
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     assert entry.unique_id is not None
     entities: list[BaseSwitchEntity] = [PowerSwitch(coordinator, entry.unique_id)]
     if "turn-primer-motor-on" in coordinator.api.spec.control_board.commands:
         entities.append(PrimerSwitch(coordinator, entry.unique_id))
-    async_add_devices(entities)
+    async_add_entities(entities)
 
 
 class BaseSwitchEntity(BaseEntity, SwitchEntity):

@@ -32,7 +32,7 @@ from .entity import BaseEntity
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
-    """Setup binary_sensor platform."""
+    """Setup climate platform."""
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     assert entry.unique_id is not None
     async_add_entities([GrillClimate(coordinator, entry.unique_id)])
