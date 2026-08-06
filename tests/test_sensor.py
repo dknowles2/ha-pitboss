@@ -379,7 +379,9 @@ async def test_chamber_temperature_null_reading_is_unknown(
     entry = await mock_add_config_entry()
     entity_id = await enable_entity(hass, entry, "sensor", "chamber_temp_mygrillid")
     coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
-    coordinator.async_set_updated_data({"isFahrenheit": True, "grillTemp": None})
+    coordinator.async_set_updated_data(
+        cast(StateDict, {"isFahrenheit": True, "grillTemp": None})
+    )
     await hass.async_block_till_done()
 
     state = hass.states.get(entity_id)
