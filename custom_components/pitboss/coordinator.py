@@ -5,10 +5,11 @@ from time import monotonic
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
-from homeassistant.core import HomeAssistant
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util.unit_conversion import TemperatureConverter
 from pytboss.api import PitBoss
@@ -26,6 +27,7 @@ from .const import (
     DOMAIN,
     FAILURES_BEFORE_BACKOFF,
     LOGGER,
+    MCU_SETTLE_SECONDS,
     STANDBY_SCAN_INTERVAL,
     SYS_INFO_INTERVAL,
 )
@@ -84,6 +86,16 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         self.probe_targets: dict[int, int] = {}
         self.restored_targets: dict[int, int] = {}
         self._targets_seeded = False
+        # The grill setpoint we asked for, held until the grill confirms it.
+        # Kept here rather than on the climate entity because the setpoint has
+        # more than one reader -- the climate entity and the grill setpoint
+        # number are two controls over one setting, and a value held by
+        # whichever one was used would leave the other showing the old
+        # setpoint for the length of the settle window. `probe_targets` lives
+        # here for the same reason.
+        self._pending_setpoint: float | None = None
+        self._pending_setpoint_unit: str | None = None
+        self._cancel_setpoint_settle: CALLBACK_TYPE | None = None
         # Consecutive failed cycles, for the backoff decision below.
         self._failed_polls = 0
 
@@ -124,6 +136,106 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         if (data := self.data) and not data.get("isFahrenheit", True):
             return UnitOfTemperature.CELSIUS
         return UnitOfTemperature.FAHRENHEIT
+
+    def grill_setpoint(self) -> float | None:
+        """The grill's setpoint, or the one just asked for.
+
+        Shows what was asked until the grill confirms it: the board wipes its
+        cached status the moment it forwards a command to the MCU, so the next
+        poll still carries the old setpoint and a control reading it straight
+        back would appear to snap to the previous setting.
+        """
+        if self._pending_setpoint is not None:
+            return self._pending_setpoint
+        if (data := self.data) and (temp := data.get("grillSetTemp")) is not None:
+            return float(temp)
+        return None
+
+    def snap_setpoint(self, temp: float) -> float:
+        """The nearest setpoint the control board will actually honour.
+
+        Snapped here as well as in pytboss -- deliberately the same arithmetic
+        -- so what is held and shown is the value the board will report, not
+        the one it will silently correct.
+        """
+        if accepted := self.accepted_setpoints(self.grill_unit):
+            return min(accepted, key=lambda value: abs(value - temp))
+        return temp
+
+    async def async_set_grill_setpoint(self, temp: float) -> None:
+        """Send a grill setpoint, and hold it until the grill confirms it."""
+        wanted = self.snap_setpoint(temp)
+        await self.api.set_grill_temperature(int(wanted))
+        self._pending_setpoint = wanted
+        self._pending_setpoint_unit = self.grill_unit
+        self.async_update_listeners()
+        # The MCU reports back within a couple of seconds; an immediate
+        # refresh would only read the cleared status. A second set inside the
+        # window replaces the timer rather than queueing another.
+        self._cancel_pending_setpoint_settle()
+        self._cancel_setpoint_settle = async_call_later(
+            self.hass, MCU_SETTLE_SECONDS, self._async_confirm_setpoint
+        )
+
+    @callback
+    def _cancel_pending_setpoint_settle(self) -> None:
+        if self._cancel_setpoint_settle is not None:
+            self._cancel_setpoint_settle()
+            self._cancel_setpoint_settle = None
+
+    async def _async_confirm_setpoint(self, _now) -> None:
+        self._cancel_setpoint_settle = None
+        await self.async_request_refresh()
+        # One settle window is all the pending value is for. If the refresh
+        # confirmed it, `_expire_pending_setpoint` has already cleared it; if
+        # the grill did not take it, follow the grill rather than assert a
+        # value it will never report.
+        if self._pending_setpoint is not None:
+            self._pending_setpoint = None
+            self.async_update_listeners()
+
+    @callback
+    def _expire_pending_setpoint(self) -> None:
+        """Stop holding the asked-for setpoint once it stops meaning anything.
+
+        Either the grill has reported it -- from which point its own answer is
+        the source again, so a later change made at the panel is not masked by
+        a value we are still asserting -- or the grill's unit has flipped,
+        which invalidates the held number outright: 225 held from a Fahrenheit
+        set must not be presented as 225 C for the rest of the window.
+        """
+        if self._pending_setpoint is None:
+            return
+        if self.grill_unit != self._pending_setpoint_unit:
+            self._pending_setpoint = None
+            return
+        reported = (self.data or {}).get("grillSetTemp")
+        if reported is not None and float(reported) == self._pending_setpoint:
+            self._pending_setpoint = None
+
+    @callback
+    def async_update_listeners(self) -> None:
+        """Expire a held setpoint before any entity reads it.
+
+        Overridden rather than hooked into one update path because the state
+        that decision depends on arrives by three of them -- the poll, the
+        push callback and `async_set_updated_data` -- and all three end here.
+        """
+        self._expire_pending_setpoint()
+        super().async_update_listeners()
+
+    async def async_shutdown(self) -> None:
+        """Drop the settle timer along with the refresh one.
+
+        Not for the refresh it would ask for -- the base class sets
+        `_shutdown_requested`, and `_async_refresh` bails out on that, so a
+        late callback does nothing. It is the timer itself: an
+        `async_call_later` left scheduled outlives the entry by up to one
+        settle window, which is what Home Assistant's own tests fail on as a
+        lingering timer.
+        """
+        self._cancel_pending_setpoint_settle()
+        await super().async_shutdown()
 
     def probe_target(self, probe_number: int) -> int | None:
         """This probe's target, in the grill's own unit.

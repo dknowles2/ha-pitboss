@@ -212,5 +212,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN].pop(
             entry.entry_id
         )
+        # The coordinator holds a settle timer of its own, which nothing else
+        # unschedules on unload.
+        await coordinator.async_shutdown()
         await coordinator.api.stop()
     return unloaded

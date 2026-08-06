@@ -3,11 +3,13 @@ from datetime import timedelta
 from unittest.mock import Mock
 
 import pytest
-from conftest import get_entity
+from conftest import enable_entity, get_entity
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant, State
+from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
+from homeassistant.util.unit_system import METRIC_SYSTEM, US_CUSTOMARY_SYSTEM
 from pytboss.exceptions import UnsupportedOperation
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -612,3 +614,173 @@ async def test_a_second_set_replaces_the_window_rather_than_queueing(
     state = hass.states.get("number.mygrill_mpc_target")
     assert state is not None
     assert state.state == "165"
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_chamber_setpoint_ships_disabled(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """A second control over a setting the climate entity already exposes."""
+    await mock_add_config_entry()
+    assert hass.states.get("number.mygrill_chamber_setpoint") is None
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(
+        "number", DOMAIN, "chamber_setpoint_mygrillid"
+    )
+    assert entity_id is not None
+    entry = registry.async_get(entity_id)
+    assert entry is not None
+    assert entry.disabled_by is not None
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_chamber_setpoint_snaps_to_what_the_board_honours(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    entry = await mock_add_config_entry()
+    entity_id = await enable_entity(hass, entry, "number", "chamber_setpoint_mygrillid")
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data({"isFahrenheit": True, "grillSetTemp": 250})
+    await hass.async_block_till_done()
+    mock_pitboss.set_grill_temperature.reset_mock()
+
+    await hass.services.async_call(
+        "number",
+        "set_value",
+        {"entity_id": entity_id, "value": 275},
+        blocking=True,
+    )
+
+    # PBV4PS2's board takes setpoints in tens; 275 is not on its list.
+    mock_pitboss.set_grill_temperature.assert_awaited_once_with(270)
+    state = hass.states.get(entity_id)
+    assert state is not None
+    assert float(state.state) == 270.0
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_chamber_setpoint_bounds_come_from_the_boards_setpoints(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """The same bounds the climate entity publishes, from the same source."""
+    entry = await mock_add_config_entry()
+    entity_id = await enable_entity(hass, entry, "number", "chamber_setpoint_mygrillid")
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data({"isFahrenheit": True})
+    await hass.async_block_till_done()
+
+    state = hass.states.get(entity_id)
+    assert state is not None
+    assert state.attributes["min"] == 130
+    assert state.attributes["max"] == 420
+    climate = hass.states.get("climate.mygrill_grill_temperature")
+    assert climate is not None
+    assert state.attributes["min"] == climate.attributes["min_temp"]
+    assert state.attributes["max"] == climate.attributes["max_temp"]
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+@pytest.mark.parametrize(
+    "units,want_step", [(US_CUSTOMARY_SYSTEM, 5.0), (METRIC_SYSTEM, 1.0)]
+)
+async def test_chamber_setpoint_steps_in_the_unit_it_is_shown_in(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    want_step: float,
+) -> None:
+    """`NumberEntity` converts the bounds but passes the step through as-is.
+
+    So a step picked for the grill's own unit would be applied to whichever
+    unit the value is displayed in -- five Celsius degrees where five
+    Fahrenheit was meant. Same Fahrenheit grill both times; only the unit it
+    is being shown in differs.
+    """
+    entry = await mock_add_config_entry()
+    entity_id = await enable_entity(hass, entry, "number", "chamber_setpoint_mygrillid")
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data({"isFahrenheit": True})
+    await hass.async_block_till_done()
+
+    state = hass.states.get(entity_id)
+    assert state is not None
+    assert state.attributes["step"] == want_step
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_the_two_setpoint_controls_never_disagree(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """The reason the held setpoint lives on the coordinator.
+
+    Held per entity, whichever control was not used would go on showing the
+    previous setpoint for the length of the settle window -- the grill has
+    not reported the new one yet, and that is all a second entity could read.
+    """
+    entry = await mock_add_config_entry()
+    entity_id = await enable_entity(hass, entry, "number", "chamber_setpoint_mygrillid")
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data(
+        {"moduleIsOn": True, "isFahrenheit": True, "grillSetTemp": 250}
+    )
+    await hass.async_block_till_done()
+
+    # Set on the climate entity; the number follows at once.
+    await hass.services.async_call(
+        "climate",
+        "set_temperature",
+        {"entity_id": "climate.mygrill_grill_temperature", "temperature": 300},
+        blocking=True,
+    )
+    state = hass.states.get(entity_id)
+    assert state is not None
+    assert float(state.state) == 300.0
+
+    # And the other way round.
+    await hass.services.async_call(
+        "number",
+        "set_value",
+        {"entity_id": entity_id, "value": 200},
+        blocking=True,
+    )
+    climate = hass.states.get("climate.mygrill_grill_temperature")
+    assert climate is not None
+    assert climate.attributes["temperature"] == 200.0
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_the_settle_timer_does_not_outlive_the_entry(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """Otherwise an `async_call_later` stays scheduled past the unload.
+
+    Asserted on the handle rather than on a refresh that never comes: the
+    base coordinator refuses to refresh once shut down, so the callback
+    firing is harmless in itself and only the live timer is the problem.
+    """
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data(
+        {"moduleIsOn": True, "isFahrenheit": True, "grillSetTemp": 250}
+    )
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        "climate",
+        "set_temperature",
+        {"entity_id": "climate.mygrill_grill_temperature", "temperature": 300},
+        blocking=True,
+    )
+    assert coordinator._cancel_setpoint_settle is not None
+
+    await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert coordinator._cancel_setpoint_settle is None

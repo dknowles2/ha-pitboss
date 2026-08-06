@@ -36,6 +36,12 @@ DEFAULT_PROBE_MIN_TEMP = 50
 DEFAULT_PROBE_MAX_TEMP = 250
 DEFAULT_PROBE_FAHRENHEIT_STEP = 1
 DEFAULT_PROBE_CELSIUS_STEP = 1
+# How far a grill setpoint control moves per press. Coarser than the list the
+# board actually honours in places, which is why every set is snapped through
+# `PitBossDataUpdateCoordinator.snap_setpoint` rather than sent as dialled --
+# these only keep a slider's own increments close to the real ones.
+GRILL_FAHRENHEIT_STEP = 5
+GRILL_CELSIUS_STEP = 1
 
 
 def probe_label(has_mpc: bool, probe_number: int) -> str:

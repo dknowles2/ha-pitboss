@@ -99,6 +99,7 @@ async def async_setup_entry(
     for description in SYS_INFO_DESCRIPTIONS:
         entities.append(SysInfoSensor(coordinator, entry.unique_id, description))
     entities.append(FirmwareSensor(coordinator, entry.unique_id))
+    entities.append(ChamberTemperature(coordinator, entry.unique_id))
     if coordinator.api.spec.json.get("has_recipe_functionality", False):
         for entity_description in RECIPE_ENTITY_DESCRIPTIONS:
             entities.append(
@@ -161,6 +162,54 @@ class ProbeSensor(BaseSensorEntity):
         if (data := self.coordinator.data) and not data.get("isFahrenheit", True):
             return UnitOfTemperature.CELSIUS
         return UnitOfTemperature.FAHRENHEIT
+
+
+class ChamberTemperature(BaseEntity, SensorEntity):
+    """The grill's own temperature, alongside the climate entity.
+
+    Disabled by default: it is the same reading the climate entity already
+    publishes, and exists only because `climate` is the one platform whose
+    unit cannot be overridden per entity. `sensor` and `number` resolve a
+    unit from the entity registry -- `climate/__init__.py` has no such
+    lookup at all -- so a grill running in Celsius cannot be shown in
+    Fahrenheit on a metric Home Assistant, which is what
+    https://github.com/dknowles2/ha-pitboss/issues/113 asks for.
+
+    Enabling this and the grill setpoint number gives a readout and a
+    control that both take a unit under the entity's own settings. The
+    climate entity is deliberately left in place: it is what voice control
+    reaches (`climate/intent.py` scopes itself to that domain) and what
+    carries `hvac_action`, neither of which a sensor can replace.
+    """
+
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:thermometer"
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(
+        self,
+        coordinator: PitBossDataUpdateCoordinator,
+        entry_unique_id: str,
+    ) -> None:
+        super().__init__(coordinator, entry_unique_id)
+        self._attr_unique_id = f"chamber_temp_{entry_unique_id}"
+        self._attr_name = "Chamber temperature"
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        return self.coordinator.grill_unit
+
+    @property
+    def native_value(self) -> float | None:
+        # Checked for None rather than presence, as the climate entity does:
+        # the boards put null on the wire for the no-reading sentinel, so a
+        # chamber sensor that is out reads as unknown rather than raising.
+        if (data := self.coordinator.data) and (
+            temp := data.get("grillTemp")
+        ) is not None:
+            return float(temp)
+        return None
 
 
 class RecipeSensor(BaseSensorEntity):

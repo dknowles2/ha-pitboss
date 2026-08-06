@@ -49,9 +49,9 @@ dependency is updated.
 | `button` | Restart the controller; request fast updates |
 | `climate` | Grill temperature and HVAC action; turn off only (safety) |
 | `light` | The grill's built-in light, if the model has one |
-| `number` | A target temperature for every probe the grill supports |
+| `number` | A target temperature for every probe the grill supports, and an optional grill setpoint |
 | `select` | The temperature unit the grill itself displays |
-| `sensor` | Probe temperatures, recipe progress, firmware version, controller uptime and free memory |
+| `sensor` | Probe temperatures, recipe progress, firmware version, controller uptime and free memory, and an optional grill temperature |
 | `switch` | Grill module power (turn off only) and the primer motor |
 
 ### Entity details
@@ -59,6 +59,7 @@ dependency is updated.
 - **Climate (`Grill temperature`):** Current and target temperature, plus HVAC action. Target temperatures snap to the values the control board actually accepts — the board silently ignores anything else. Setting HVAC mode to `off` turns the grill off and leaves the setpoint alone.
 - **Sensor (`MPC`/`P2`–`P4`, or `Probe 1`–`Probe 4`):** Probe temperatures in the grill's current unit. On grills with a meat probe control port, probe 1 is labelled `MPC` to match what is printed by the socket; other grills keep numbered names. Only as many probes as the grill has are enabled.
 - **Number (`… target`):** A target for every probe the board supports, not just the first two. Targets can be set while the probe is unplugged and while the grill is off — they are held and sent when the grill comes on.
+- **Sensor (`Chamber temperature`) and number (`Chamber setpoint`), both disabled by default:** The same reading and the same control the climate entity offers, in a shape you can override the unit on. Home Assistant resolves a per-entity unit for `sensor` and `number` entities but not for `climate` ones, so if you want the grill in °F while the rest of your Home Assistant is in °C — or the other way round — enable these two and set the unit under each entity's own settings. The climate entity stays whatever you do: it is what voice assistants control and what reports HVAC action. Both controls write through the same place, so moving one moves the other straight away.
 - **Binary sensor (`… target reached`):** One per probe, comparing the probe against its target.
 - **Binary sensor (`Connectivity`):** Stays available so it can report *disconnected*, rather than vanishing along with everything else.
 - **Binary sensor (`Meat probe control`):** Whether the grill has a control port at all.

@@ -3,7 +3,11 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from homeassistant.components.number import NumberEntityDescription, RestoreNumber
+from homeassistant.components.number import (
+    NumberEntity,
+    NumberEntityDescription,
+    RestoreNumber,
+)
 from homeassistant.components.number.const import NumberDeviceClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
@@ -18,6 +22,8 @@ from .const import (
     DEFAULT_PROBE_MAX_TEMP,
     DEFAULT_PROBE_MIN_TEMP,
     DOMAIN,
+    GRILL_CELSIUS_STEP,
+    GRILL_FAHRENHEIT_STEP,
     MCU_SETTLE_SECONDS,
     probe_label,
 )
@@ -50,13 +56,81 @@ async def async_setup_entry(
     # No model in the catalogue declares 0, but an unknown grill having no
     # probes should mean no probe targets rather than one.
     probe_count = coordinator.api.spec.meat_probes or 0
-    entities = [
+    entities: list[NumberEntity] = [
         TargetProbeTemperature(coordinator, entry.unique_id, description)
         for description in PROBE_DESCRIPTIONS
         if description.probe_number <= probe_count
     ]
-    if entities:
-        async_add_entities(entities)
+    entities.append(ChamberSetpoint(coordinator, entry.unique_id))
+    async_add_entities(entities)
+
+
+class ChamberSetpoint(BaseEntity, NumberEntity):
+    """The grill's setpoint, alongside the climate entity's slider.
+
+    Disabled by default, and the writable half of what
+    https://github.com/dknowles2/ha-pitboss/issues/113 asks for: a `number`
+    resolves a per-entity unit from the entity registry, a `climate` entity
+    does not, so this is the only way to dial the grill in Fahrenheit from a
+    Home Assistant running in Celsius. See `ChamberTemperature` for the
+    readout and for why the climate entity stays.
+
+    Both controls write through the coordinator, so setting one moves the
+    other immediately rather than at the end of the settle window.
+    """
+
+    _attr_device_class = NumberDeviceClass.TEMPERATURE
+    _attr_icon = "mdi:thermometer"
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(
+        self,
+        coordinator: PitBossDataUpdateCoordinator,
+        entry_unique_id: str,
+    ) -> None:
+        super().__init__(coordinator, entry_unique_id)
+        self._attr_unique_id = f"chamber_setpoint_{entry_unique_id}"
+        self._attr_name = "Chamber setpoint"
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        return self.coordinator.grill_unit
+
+    @property
+    def native_step(self) -> float:
+        """The step, in whatever unit the value is being *displayed* in.
+
+        `NumberEntity` converts the minimum and the maximum into the unit the
+        user picked but passes `native_step` through untouched, so a step
+        chosen for the grill's unit would be applied to the other one -- five
+        Celsius degrees where five Fahrenheit was meant. Keyed off
+        `unit_of_measurement`, which is the registry override when there is
+        one and the unit system otherwise.
+        """
+        if self.unit_of_measurement == UnitOfTemperature.FAHRENHEIT:
+            return float(GRILL_FAHRENHEIT_STEP)
+        return float(GRILL_CELSIUS_STEP)
+
+    @property
+    def _accepted_setpoints(self) -> list[float]:
+        return self.coordinator.accepted_setpoints(self.coordinator.grill_unit)
+
+    @property
+    def native_min_value(self) -> float:
+        # The setpoint list, with nothing behind it -- the same bounds the
+        # climate entity publishes, from the same source.
+        return min(self._accepted_setpoints)
+
+    @property
+    def native_max_value(self) -> float:
+        return max(self._accepted_setpoints)
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.grill_setpoint()
+
+    async def async_set_native_value(self, value: float) -> None:
+        await self.coordinator.async_set_grill_setpoint(value)
 
 
 class TargetProbeTemperature(BaseEntity, RestoreNumber):
