@@ -138,7 +138,12 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         Celsius meant presenting one unit while commands were snapped in the
         other.
         """
-        if (data := self.data) and not data.get("isFahrenheit", True):
+        return self._unit_of(self.data or StateDict())
+
+    @staticmethod
+    def _unit_of(state: StateDict) -> str:
+        """The unit a state frame is expressed in."""
+        if not state.get("isFahrenheit", True):
             return UnitOfTemperature.CELSIUS
         return UnitOfTemperature.FAHRENHEIT
 
@@ -348,6 +353,14 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         try:
             # Copied: we add to this below, and it is not ours to mutate.
             self.probe_targets = dict(await self.api.get_probe_targets())
+            # Recorded at the point of the read rather than left for
+            # `_follow_probe_targets_unit` to infer: these values came back
+            # in the unit of the frame that carried them, and `self.data` is
+            # not updated until this poll returns -- so the inference would
+            # see a flip that has already been accounted for and convert
+            # them a second time. `state` is the merged frame, so a partial
+            # one that omits the flag still carries the previous value.
+            self._targets_unit = self._unit_of(state)
         except Exception as ex:  # noqa: BLE001
             self.logger.debug("Could not fetch the probe targets: %s", ex)
             return
