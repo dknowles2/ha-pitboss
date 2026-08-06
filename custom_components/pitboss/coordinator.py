@@ -87,6 +87,11 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         self.probe_targets: dict[int, int] = {}
         self.restored_targets: dict[int, int] = {}
         self._targets_seeded = False
+        # The unit `probe_targets` was last known to be in, so a unit change
+        # can convert the held values instead of serving them mislabeled.
+        # `None` until the first update: the unit read before any data is
+        # the Fahrenheit default, not something the grill said.
+        self._targets_unit: str | None = None
         # The grill setpoint we asked for, held until the grill confirms it.
         # Kept here rather than on the climate entity because the setpoint has
         # more than one reader -- the climate entity and the grill setpoint
@@ -134,7 +139,12 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         Celsius meant presenting one unit while commands were snapped in the
         other.
         """
-        if (data := self.data) and not data.get("isFahrenheit", True):
+        return self._unit_of(self.data or StateDict())
+
+    @staticmethod
+    def _unit_of(state: StateDict) -> str:
+        """The unit a state frame is expressed in."""
+        if not state.get("isFahrenheit", True):
             return UnitOfTemperature.CELSIUS
         return UnitOfTemperature.FAHRENHEIT
 
@@ -215,14 +225,47 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
             self._pending_setpoint = None
 
     @callback
+    def _follow_probe_targets_unit(self) -> None:
+        """Convert the held probe targets when the grill's unit flips.
+
+        `probe_targets` holds values in the grill's unit, and the poll is the
+        only path that refreshes it -- a unit change arriving by push left
+        the old-unit numbers in place for up to a poll interval. In that
+        window a target number showed the old value labeled with the new
+        unit, and target-reached compared across units: a probe reading
+        140 F sat above a target of 74 held from Celsius, so the sensor
+        fired for a probe that was 14 degrees C short.
+
+        Converted rather than dropped so the target stays on the dashboard;
+        the next poll re-reads what the grill is actually holding. Only the
+        probes whose target is not board-reported are exposed to this --
+        `probe_target` prefers the state's own `pNTarget`, which arrives
+        already flipped -- but those are most probes on most boards.
+        `restored_targets` needs nothing: it is kept in Fahrenheit for
+        exactly this reason.
+        """
+        unit = self.grill_unit
+        if self._targets_unit is None or not self.probe_targets:
+            self._targets_unit = unit
+            return
+        prev, self._targets_unit = self._targets_unit, unit
+        if unit == prev:
+            return
+        self.probe_targets = {
+            probe_number: round(TemperatureConverter.convert(float(target), prev, unit))
+            for probe_number, target in self.probe_targets.items()
+        }
+
+    @callback
     def async_update_listeners(self) -> None:
-        """Expire a held setpoint before any entity reads it.
+        """Reconcile what we hold with what arrived, before any entity reads.
 
         Overridden rather than hooked into one update path because the state
-        that decision depends on arrives by three of them -- the poll, the
+        these decisions depend on arrives by three of them -- the poll, the
         push callback and `async_set_updated_data` -- and all three end here.
         """
         self._expire_pending_setpoint()
+        self._follow_probe_targets_unit()
         super().async_update_listeners()
 
     async def async_shutdown(self) -> None:
@@ -339,6 +382,14 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         try:
             # Copied: we add to this below, and it is not ours to mutate.
             self.probe_targets = dict(await self.api.get_probe_targets())
+            # Recorded at the point of the read rather than left for
+            # `_follow_probe_targets_unit` to infer: these values came back
+            # in the unit of the frame that carried them, and `self.data` is
+            # not updated until this poll returns -- so the inference would
+            # see a flip that has already been accounted for and convert
+            # them a second time. `state` is the merged frame, so a partial
+            # one that omits the flag still carries the previous value.
+            self._targets_unit = self._unit_of(state)
         except Exception as ex:  # noqa: BLE001
             self.logger.debug("Could not fetch the probe targets: %s", ex)
             return
