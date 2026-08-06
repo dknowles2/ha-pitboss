@@ -258,7 +258,7 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         setting too.
         """
         target = self._resolve_probe_target(probe_number)
-        if target is None or target == self._probe_target_floor:
+        if target is None or target == self.probe_target_floor:
             return None
         return target
 
@@ -273,11 +273,14 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         return None
 
     @property
-    def _probe_target_floor(self) -> int:
-        """The lowest probe target, in the grill's unit.
+    def probe_target_floor(self) -> int:
+        """The board's "no target" placeholder, in the grill's unit.
 
         Converted the way `_from_fahrenheit` converts, so a value that came
         back through that path compares equal to one the board reported.
+        Public because the probe number has to keep it off the dial: a
+        control offering the one value `probe_target` discards would let a
+        user set something that cannot stick.
         """
         return self._from_fahrenheit(DEFAULT_PROBE_MIN_TEMP)
 
@@ -352,7 +355,7 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
             # Converted at seeding time, into whatever unit the grill has
             # *now* -- which may not be the unit it had at capture.
             temp = self._from_fahrenheit(held)
-            if temp == self._probe_target_floor:
+            if temp == self.probe_target_floor:
                 # Not a target -- see `probe_target`. Restoring one would
                 # write the board's own placeholder back to it.
                 continue

@@ -89,7 +89,9 @@ async def test_native_value_and_availability(
     assert state.state == "165"
     assert state.attributes["unit_of_measurement"] == "°F"
     assert state.attributes["step"] == 1
-    assert state.attributes["min"] == 50
+    # One above the board's "no target" placeholder: see
+    # `test_the_dial_does_not_offer_the_no_target_placeholder`.
+    assert state.attributes["min"] == 51
     assert state.attributes["max"] == 250
 
 
@@ -784,3 +786,31 @@ async def test_the_settle_timer_does_not_outlive_the_entry(
     await hass.async_block_till_done()
 
     assert coordinator._cancel_setpoint_settle is None
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_the_dial_does_not_offer_the_no_target_placeholder(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """The minimum offered must be a target that can stick.
+
+    `probe_target` drops the board's placeholder, so a dial whose own
+    minimum is that value would accept a set, hold it for the settle
+    window, and then report unknown -- which reads as a bug to whoever
+    hits the bottom of the slider.
+    """
+    entry = await mock_add_config_entry()
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    mock_pitboss.is_connected.return_value = True
+    coordinator.async_set_updated_data({"isFahrenheit": True, "moduleIsOn": True})
+
+    state = hass.states.get("number.mygrill_mpc_target")
+    assert state is not None
+    minimum = state.attributes["min"]
+    assert minimum > coordinator.probe_target_floor
+
+    # And the minimum it does offer survives being set.
+    coordinator.probe_targets[1] = int(minimum)
+    assert coordinator.probe_target(1) == int(minimum)
