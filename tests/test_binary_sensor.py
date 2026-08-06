@@ -357,10 +357,14 @@ async def test_target_reached_ignores_a_target_at_the_minimum(
         {"isFahrenheit": True, "p1Target": 50, "p1Temp": 77}
     )
     await hass.async_block_till_done()
-    assert hass.states.get(_entity_id("MPC target reached")).state == "off"
+    state = hass.states.get(_entity_id("MPC target reached"))
+    assert state is not None
+    assert state.state == "off"
 
     coordinator.async_set_updated_data(
         {"isFahrenheit": True, "p1Target": 145, "p1Temp": 150}
     )
     await hass.async_block_till_done()
-    assert hass.states.get(_entity_id("MPC target reached")).state == "on"
+    state = hass.states.get(_entity_id("MPC target reached"))
+    assert state is not None
+    assert state.state == "on"
