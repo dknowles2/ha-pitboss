@@ -4,12 +4,13 @@ from typing import cast
 from unittest.mock import Mock
 
 import pytest
-from conftest import get_entity
-from homeassistant.const import STATE_UNAVAILABLE
+from conftest import enable_entity, get_entity
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
+from homeassistant.util.unit_system import METRIC_SYSTEM
 from pytboss.grills import StateDict
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -327,3 +328,98 @@ async def test_a_late_firmware_read_reaches_the_device_page(
     device = registry.async_get_device(identifiers={(DOMAIN, "mygrill")})
     assert device is not None
     assert device.sw_version == "0.5.7"
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_chamber_temperature_ships_disabled(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """It duplicates a reading the climate entity already publishes.
+
+    Only worth having for the unit override it accepts and the climate
+    entity does not, so it stays out of the way until someone asks for it.
+    """
+    await mock_add_config_entry()
+    assert hass.states.get("sensor.mygrill_chamber_temperature") is None
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id("sensor", DOMAIN, "chamber_temp_mygrillid")
+    assert entity_id is not None
+    entry = registry.async_get(entity_id)
+    assert entry is not None
+    assert entry.disabled_by is not None
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_chamber_temperature_mirrors_the_climate_reading(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    entry = await mock_add_config_entry()
+    entity_id = await enable_entity(hass, entry, "sensor", "chamber_temp_mygrillid")
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data({"isFahrenheit": True, "grillTemp": 275})
+    await hass.async_block_till_done()
+
+    state = hass.states.get(entity_id)
+    assert state is not None
+    assert float(state.state) == 275.0
+    assert state.attributes["unit_of_measurement"] == UnitOfTemperature.FAHRENHEIT
+    climate = hass.states.get("climate.mygrill_grill_temperature")
+    assert climate is not None
+    assert climate.attributes["current_temperature"] == 275.0
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_chamber_temperature_null_reading_is_unknown(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """The boards put null on the wire for the no-reading sentinel."""
+    entry = await mock_add_config_entry()
+    entity_id = await enable_entity(hass, entry, "sensor", "chamber_temp_mygrillid")
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data(
+        cast(StateDict, {"isFahrenheit": True, "grillTemp": None})
+    )
+    await hass.async_block_till_done()
+
+    state = hass.states.get(entity_id)
+    assert state is not None
+    assert state.state == STATE_UNKNOWN
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+@pytest.mark.parametrize("units", [METRIC_SYSTEM])
+async def test_chamber_temperature_takes_a_unit_override(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """The entire reason this entity exists.
+
+    A Celsius grill on a metric Home Assistant, shown in Fahrenheit. The
+    climate entity is fed the same registry option and ignores it -- there is
+    no lookup for it in `climate/__init__.py` -- which is what this asserts by
+    reading both at once.
+    """
+    entry = await mock_add_config_entry()
+    entity_id = await enable_entity(hass, entry, "sensor", "chamber_temp_mygrillid")
+    registry = er.async_get(hass)
+    registry.async_update_entity_options(
+        entity_id,
+        "sensor",
+        {"unit_of_measurement": UnitOfTemperature.FAHRENHEIT},
+    )
+    await hass.async_block_till_done()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data({"isFahrenheit": False, "grillTemp": 121})
+    await hass.async_block_till_done()
+
+    state = hass.states.get(entity_id)
+    assert state is not None
+    assert state.attributes["unit_of_measurement"] == UnitOfTemperature.FAHRENHEIT
+    assert float(state.state) == pytest.approx(249.8)
+
+    climate = hass.states.get("climate.mygrill_grill_temperature")
+    assert climate is not None
+    assert climate.attributes["current_temperature"] == 121.0

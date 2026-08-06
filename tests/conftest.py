@@ -5,6 +5,7 @@ import pytest
 from homeassistant.const import CONF_DEVICE_ID, CONF_MODEL, CONF_PASSWORD, CONF_PROTOCOL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_platform as ep
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity import Entity
 from homeassistant.util.unit_system import US_CUSTOMARY_SYSTEM, UnitSystem
 from pytboss.grills import Grill, get_grill
@@ -30,6 +31,26 @@ def get_entity[EntityT: Entity](
             assert isinstance(entity, entity_type)
             return entity
     raise AssertionError(f"{platform_domain} platform not found")
+
+
+async def enable_entity(
+    hass: HomeAssistant,
+    entry: MockConfigEntry,
+    platform_domain: str,
+    unique_id: str,
+) -> str:
+    """Turn on an entity that ships disabled, and return its entity id.
+
+    Reloads the entry, because a registry row going from disabled to enabled
+    is only acted on when the platform next sets up.
+    """
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(platform_domain, DOMAIN, unique_id)
+    assert entity_id is not None
+    registry.async_update_entity(entity_id, disabled_by=None)
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    return entity_id
 
 
 @pytest.fixture(autouse=True, scope="session")
