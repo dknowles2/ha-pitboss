@@ -323,3 +323,46 @@ async def test_a_restored_target_is_seeded_in_the_grills_current_unit(
     mock_pitboss.get_state.return_value = StateDict(moduleIsOn=True, isFahrenheit=True)
     await coordinator._async_update_data()
     mock_pitboss.set_probe_target.assert_awaited_once_with(2, 165)
+
+
+async def test_held_probe_targets_follow_a_unit_flip(
+    coordinator: PitBossDataUpdateCoordinator, mock_pitboss: Mock
+) -> None:
+    """A unit change arriving by push converts the held targets with it.
+
+    `probe_targets` holds grill-unit values and only the poll refreshes it,
+    so a flip pushed between polls left the old-unit numbers in place for up
+    to a poll interval: a target number showed 74 labeled Fahrenheit, and
+    target-reached compared a 140 F probe against a 74 held from Celsius --
+    firing for a probe that was 14 degrees C short. Only probes whose target
+    is not board-reported are exposed, which is why this reads probe 2 with
+    no `p2Target` in the state.
+    """
+    coordinator.async_set_updated_data(StateDict(isFahrenheit=False, moduleIsOn=True))
+    coordinator.probe_targets[2] = 74
+
+    coordinator.async_set_updated_data(StateDict(isFahrenheit=True, moduleIsOn=True))
+    assert coordinator.probe_target(2) == 165
+
+    # And back, in case the flip was a mistake being corrected.
+    coordinator.async_set_updated_data(StateDict(isFahrenheit=False, moduleIsOn=True))
+    assert coordinator.probe_target(2) == 74
+
+
+async def test_a_unit_flip_arriving_by_poll(
+    coordinator: PitBossDataUpdateCoordinator, mock_pitboss: Mock
+) -> None:
+    """The poll re-reads the targets from the grill, already in the new unit."""
+    coordinator._api_started = True
+    mock_pitboss.is_connected.return_value = True
+
+    mock_pitboss.get_state.return_value = StateDict(moduleIsOn=True, isFahrenheit=True)
+    mock_pitboss.get_probe_targets.return_value = {3: 165}
+    await coordinator.async_refresh()
+    assert coordinator.probe_target(3) == 165
+
+    mock_pitboss.get_state.return_value = StateDict(moduleIsOn=True, isFahrenheit=False)
+    mock_pitboss.get_probe_targets.return_value = {3: 74}
+    await coordinator.async_refresh()
+
+    assert coordinator.probe_target(3) == 74
