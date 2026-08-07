@@ -428,3 +428,67 @@ async def test_chamber_temperature_takes_a_unit_override(
     climate = hass.states.get("climate.mygrill_grill_temperature")
     assert climate is not None
     assert climate.attributes["current_temperature"] == 121.0
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_smoker_temperature_ships_disabled(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """The frame carries it; what it reads on a given grill is unverified."""
+    await mock_add_config_entry()
+    assert hass.states.get("sensor.mygrill_smoker_temperature") is None
+    # Anchored: a sensor this model does have, so the absence above means
+    # disabled rather than a platform that never set up.
+    assert hass.states.get("sensor.mygrill_mpc") is not None
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id("sensor", DOMAIN, "smoker_temp_mygrillid")
+    assert entity_id is not None
+    entry = registry.async_get(entity_id)
+    assert entry is not None
+    assert entry.disabled_by is not None
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_smoker_temperature_reads_its_own_field(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """Not a second name for the chamber: distinct bytes, distinct value."""
+    entry = await mock_add_config_entry()
+    entity_id = await enable_entity(hass, entry, "sensor", "smoker_temp_mygrillid")
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_set_updated_data(
+        {"isFahrenheit": True, "grillTemp": 275, "smokerActTemp": 180}
+    )
+    await hass.async_block_till_done()
+
+    state = hass.states.get(entity_id)
+    assert state is not None
+    assert float(state.state) == 180.0
+    assert state.attributes["unit_of_measurement"] == UnitOfTemperature.FAHRENHEIT
+    # The chamber is reading something else at the same moment.
+    climate = hass.states.get("climate.mygrill_grill_temperature")
+    assert climate is not None
+    assert climate.attributes["current_temperature"] == 275.0
+
+
+@pytest.mark.parametrize("model", ["PB850M"])
+async def test_no_smoker_sensor_on_a_board_that_never_reports_one(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+) -> None:
+    """26 of the 137 models decode no smoker field at all.
+
+    Creating the entity anyway would leave it unknown for the life of the
+    entry -- the same shape as the startup-error sensor on these boards.
+    """
+    await mock_add_config_entry()
+    registry = er.async_get(hass)
+    assert (
+        registry.async_get_entity_id("sensor", DOMAIN, "smoker_temp_mygrillid") is None
+    )
+    # Anchored, so this cannot pass by the platform not setting up.
+    assert (
+        registry.async_get_entity_id("sensor", DOMAIN, "probe1_mygrillid") is not None
+    )
