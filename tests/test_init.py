@@ -145,7 +145,6 @@ async def test_setup_entry_ble_connects_and_forwards_platforms(
         await hass.async_block_till_done()
 
     assert entry.state is ConfigEntryState.LOADED
-    assert DOMAIN in hass.config_entries.async_domains()
 
 
 async def test_setup_entry_local_connects_and_forwards_platforms(

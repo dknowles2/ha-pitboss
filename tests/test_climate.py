@@ -280,14 +280,19 @@ async def test_a_unit_change_invalidates_the_held_setpoint(
         blocking=True,
     )
 
+    # 100 C rather than a value near the pre-flip setpoint: 121 C lands on
+    # 249.8 F, which rounds to the 250 this test started from, so a code
+    # path that wrongly kept the old data would have been indistinguishable
+    # from the right answer. 100 C is 212 F exactly, which is neither the
+    # stale held 300 nor the pre-flip 250.
     coordinator.async_set_updated_data(
-        {"moduleIsOn": True, "isFahrenheit": False, "grillSetTemp": 121}
+        {"moduleIsOn": True, "isFahrenheit": False, "grillSetTemp": 100}
     )
     await hass.async_block_till_done()
     state = hass.states.get(ENTITY_ID)
     assert state is not None
-    # 121 C converted for the imperial-unit test HA, not the stale 300.
-    assert state.attributes["temperature"] != 300.0
+    # 100 C converted for the imperial-unit test HA, not the stale 300.
+    assert state.attributes["temperature"] == 212.0
 
 
 @pytest.mark.parametrize("model", ["PBV4PS2"])
