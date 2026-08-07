@@ -100,6 +100,11 @@ async def async_setup_entry(
         entities.append(SysInfoSensor(coordinator, entry.unique_id, description))
     entities.append(FirmwareSensor(coordinator, entry.unique_id))
     entities.append(ChamberTemperature(coordinator, entry.unique_id))
+    # Only boards whose routines read it -- 111 of the 137 catalogued
+    # models. Asked of the board rather than gated on a list of names,
+    # so a definitions refresh is followed without a change here.
+    if coordinator.api.spec.control_board.emits("smokerActTemp"):
+        entities.append(SmokerTemperature(coordinator, entry.unique_id))
     if coordinator.api.spec.json.get("has_recipe_functionality", False):
         for entity_description in RECIPE_ENTITY_DESCRIPTIONS:
             entities.append(
@@ -207,6 +212,51 @@ class ChamberTemperature(BaseEntity, SensorEntity):
         # chamber sensor that is out reads as unknown rather than raising.
         if (data := self.coordinator.data) and (
             temp := data.get("grillTemp")
+        ) is not None:
+            return float(temp)
+        return None
+
+
+class SmokerTemperature(BaseEntity, SensorEntity):
+    """The smoke box reading, on the boards whose frames carry one.
+
+    A field of its own on the wire rather than a second name for the
+    chamber: it reads its own bytes, and moving it does not move
+    `grillTemp`. 111 of the 137 catalogued models decode it; the rest never
+    report it and get no entity, which is why this is gated on `emits()`.
+
+    Disabled by default. The frame carries it and the vendor's own routine
+    names it, but what it reads on a given grill has not been checked
+    against hardware here -- a combo model with a separate smoke box is not
+    the same appliance as a pellet grill that happens to decode the field.
+    Shipping it off means anyone who has the box can turn it on, and nobody
+    else acquires a sensor this repo cannot vouch for.
+    """
+
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:thermometer"
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(
+        self,
+        coordinator: PitBossDataUpdateCoordinator,
+        entry_unique_id: str,
+    ) -> None:
+        super().__init__(coordinator, entry_unique_id)
+        self._attr_unique_id = f"smoker_temp_{entry_unique_id}"
+        self._attr_name = "Smoker temperature"
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        return self.coordinator.grill_unit
+
+    @property
+    def native_value(self) -> float | None:
+        # Checked for None rather than presence: the boards put null on the
+        # wire for the no-reading sentinel, the same as an unplugged probe.
+        if (data := self.coordinator.data) and (
+            temp := data.get("smokerActTemp")
         ) is not None:
             return float(temp)
         return None
