@@ -2,6 +2,7 @@ from collections.abc import Awaitable, Callable, Generator
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_DEVICE_ID, CONF_MODEL, CONF_PASSWORD, CONF_PROTOCOL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_platform as ep
@@ -138,7 +139,13 @@ async def mock_add_config_entry(
         mock_config_entry.add_to_hass(hass)
         await hass.config_entries.async_setup(mock_config_entry.entry_id)
         await hass.async_block_till_done()
-        assert DOMAIN in hass.config_entries.async_domains()
+        # The entry's own state, not `async_domains()`. That returns the
+        # domains of *registered* entries whatever state they are in, so
+        # it is true from `add_to_hass` onward -- including for a setup
+        # that raised `ConfigEntryNotReady` and left the entry retrying.
+        # Every test in the suite comes through here, so the guard being
+        # vacuous meant none of them checked that setup worked.
+        assert mock_config_entry.state is ConfigEntryState.LOADED
         return mock_config_entry
 
     return callback
