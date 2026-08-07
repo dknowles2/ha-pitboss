@@ -382,13 +382,18 @@ async def test_a_unit_change_invalidates_the_held_target(
         blocking=True,
     )
 
+    # 90 C rather than 74: 74 C is 165.2 F, which renders as "165.0" once
+    # rounded to the step -- the same number as the stale held 165, which
+    # this could then only tell apart by its rendering. 90 C is 194 F, so
+    # the right answer and the wrong one are different numbers.
     coordinator.async_set_updated_data(
-        {"moduleIsOn": True, "isFahrenheit": False, "p2Target": 74}
+        {"moduleIsOn": True, "isFahrenheit": False, "p2Target": 90}
     )
     await hass.async_block_till_done()
     state = hass.states.get("number.mygrill_p2_target")
     assert state is not None
-    assert state.state != "165"
+    # 90 C converted for the imperial-unit test HA, not the stale 165.
+    assert float(state.state) == 194.0
 
 
 def _stored_target(entity_id: str, value: float, unit: str) -> tuple[State, dict]:

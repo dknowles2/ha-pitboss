@@ -89,6 +89,11 @@ async def test_recipe_sensors_absent_when_unsupported(
     mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
 ) -> None:
     await mock_add_config_entry()
+    # Anchored on a sensor PB2180LK does have. Absence alone passes if
+    # the platform never set up at all, or if an entity id is renamed --
+    # this is the only absence assertion in the suite without a sibling
+    # to hold it down.
+    assert hass.states.get("sensor.mygrill_probe_1") is not None
     assert hass.states.get("sensor.mygrill_recipe_time") is None
     assert hass.states.get("sensor.mygrill_recipe_step") is None
 
