@@ -89,7 +89,7 @@
     "pytboss"
   ],
   "requirements": [
-    "pytboss==2026.8.5"
+    "pytboss==2026.8.6"
   ],
   "version": "0000.0.0"
 }
