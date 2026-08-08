@@ -334,3 +334,37 @@ async def test_the_stale_row_from_an_earlier_release_is_removed(
         )
         is not None
     )
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_target_reached_ignores_a_target_at_the_minimum(
+    hass: HomeAssistant,
+    mock_add_config_entry: Callable[[], Awaitable[MockConfigEntry]],
+    mock_pitboss: Mock,
+) -> None:
+    """Plugging a probe into a cold grill used to light this sensor.
+
+    The board reports 50 F for a probe it is not working to, and a probe
+    sitting in a room is warmer than that, so the sensor came on the moment
+    one was plugged in -- reporting the probe's presence rather than the
+    meat's temperature.
+    """
+    entry = await mock_add_config_entry()
+    coordinator: PitBossDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    mock_pitboss.is_connected.return_value = True
+
+    coordinator.async_set_updated_data(
+        {"isFahrenheit": True, "p1Target": 50, "p1Temp": 77}
+    )
+    await hass.async_block_till_done()
+    state = hass.states.get(_entity_id("MPC target reached"))
+    assert state is not None
+    assert state.state == "off"
+
+    coordinator.async_set_updated_data(
+        {"isFahrenheit": True, "p1Target": 145, "p1Temp": 150}
+    )
+    await hass.async_block_till_done()
+    state = hass.states.get(_entity_id("MPC target reached"))
+    assert state is not None
+    assert state.state == "on"

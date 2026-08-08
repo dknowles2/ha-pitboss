@@ -20,7 +20,6 @@ from .const import (
     DEFAULT_PROBE_CELSIUS_STEP,
     DEFAULT_PROBE_FAHRENHEIT_STEP,
     DEFAULT_PROBE_MAX_TEMP,
-    DEFAULT_PROBE_MIN_TEMP,
     DOMAIN,
     GRILL_CELSIUS_STEP,
     GRILL_FAHRENHEIT_STEP,
@@ -261,12 +260,16 @@ class TargetProbeTemperature(BaseEntity, RestoreNumber):
 
     @property
     def native_min_value(self) -> float:
-        """Return the minimum value."""
-        return TemperatureConverter.convert(
-            DEFAULT_PROBE_MIN_TEMP,
-            UnitOfTemperature.FAHRENHEIT,
-            self.native_unit_of_measurement,
-        )
+        """The lowest target that means anything.
+
+        One step above the board's "no target" placeholder, which
+        `probe_target` discards: offering the placeholder itself would put a
+        value on the dial that the entity reports back as unknown once the
+        settle window closes. Read from the coordinator rather than
+        converted here, so the dial and the value it drops cannot drift
+        apart -- both are in the grill's own unit.
+        """
+        return float(self.coordinator.probe_target_floor + 1)
 
     @property
     def native_max_value(self) -> float:

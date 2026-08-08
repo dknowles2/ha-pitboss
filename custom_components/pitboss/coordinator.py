@@ -24,6 +24,7 @@ from pytboss.grills import StateDict
 
 from .const import (
     ACTIVE_SCAN_INTERVAL,
+    DEFAULT_PROBE_MIN_TEMP,
     DOMAIN,
     FAILURES_BEFORE_BACKOFF,
     LOGGER,
@@ -288,7 +289,23 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         rather than at the next poll. Then what pytboss resolved from the
         grill's store. Then ours -- a target we set and restored across a
         restart, which exists only because Home Assistant outlives that store.
+
+        A target at the minimum is no target. It is what the board reports
+        for a probe it is not working to -- observed on a PBL reading 50 F
+        for probe 1 with nothing set, and the real value the moment one was
+        -- and at that value the answer carries nothing either way: as the
+        board's placeholder it makes target-reached fire for any probe
+        warmer than 50 F, which is every probe in a room; and asked for
+        deliberately it was already true before it was asked. Dropped here
+        rather than in the sensor, so the number stops offering it as a
+        setting too.
         """
+        target = self._resolve_probe_target(probe_number)
+        if target is None or target == self.probe_target_floor:
+            return None
+        return target
+
+    def _resolve_probe_target(self, probe_number: int) -> int | None:
         reported = (self.data or {}).get(f"p{probe_number}Target")
         if isinstance(reported, (int, float)):
             return int(reported)
@@ -297,6 +314,18 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         if (held := self.restored_targets.get(probe_number)) is not None:
             return self._from_fahrenheit(held)
         return None
+
+    @property
+    def probe_target_floor(self) -> int:
+        """The board's "no target" placeholder, in the grill's unit.
+
+        Converted the way `_from_fahrenheit` converts, so a value that came
+        back through that path compares equal to one the board reported.
+        Public because the probe number has to keep it off the dial: a
+        control offering the one value `probe_target` discards would let a
+        user set something that cannot stick.
+        """
+        return self._from_fahrenheit(DEFAULT_PROBE_MIN_TEMP)
 
     def _to_fahrenheit(self, temp: int) -> int:
         """A grill-unit value, in the unit `restored_targets` is kept in."""
@@ -377,6 +406,10 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
             # Converted at seeding time, into whatever unit the grill has
             # *now* -- which may not be the unit it had at capture.
             temp = self._from_fahrenheit(held)
+            if temp == self.probe_target_floor:
+                # Not a target -- see `probe_target`. Restoring one would
+                # write the board's own placeholder back to it.
+                continue
             try:
                 await self.api.set_probe_target(probe_number, temp)
             except Exception as ex:  # noqa: BLE001

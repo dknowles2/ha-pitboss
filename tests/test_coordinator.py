@@ -325,6 +325,63 @@ async def test_a_restored_target_is_seeded_in_the_grills_current_unit(
     mock_pitboss.set_probe_target.assert_awaited_once_with(2, 165)
 
 
+async def test_a_target_at_the_minimum_is_no_target(
+    coordinator: PitBossDataUpdateCoordinator,
+) -> None:
+    """The board reports its floor for a probe it is not working to.
+
+    Observed on a PBL: probe 1 read 50 F with nothing set, and the real
+    value the moment one was. Left alone, target-reached fired for any
+    probe warmer than 50 F -- which is every probe in a room, so plugging
+    one into a cold grill lit the sensor.
+    """
+    coordinator.async_set_updated_data(StateDict(isFahrenheit=True, p1Target=50))
+    assert coordinator.probe_target(1) is None
+
+    coordinator.async_set_updated_data(StateDict(isFahrenheit=True, p1Target=145))
+    assert coordinator.probe_target(1) == 145
+
+
+async def test_the_minimum_is_recognised_in_celsius_too(
+    coordinator: PitBossDataUpdateCoordinator,
+) -> None:
+    """50 F is 10 C, and the board reports whichever unit it is set to."""
+    coordinator.async_set_updated_data(StateDict(isFahrenheit=False, p1Target=10))
+    assert coordinator.probe_target(1) is None
+
+    coordinator.async_set_updated_data(StateDict(isFahrenheit=False, p1Target=62))
+    assert coordinator.probe_target(1) == 62
+
+
+async def test_the_minimum_is_dropped_from_every_source(
+    coordinator: PitBossDataUpdateCoordinator,
+) -> None:
+    """Not only the board's own report: held and restored values too."""
+    coordinator.async_set_updated_data(StateDict(isFahrenheit=True))
+    coordinator.probe_targets[2] = 50
+    assert coordinator.probe_target(2) is None
+
+    coordinator.probe_targets.clear()
+    coordinator.note_restored_target(3, 50)
+    assert coordinator.probe_target(3) is None
+
+
+async def test_a_restored_minimum_is_not_seeded_to_the_grill(
+    coordinator: PitBossDataUpdateCoordinator, mock_pitboss: Mock
+) -> None:
+    """Seeding one would write the board's own placeholder back to it."""
+    coordinator.async_set_updated_data(StateDict(isFahrenheit=True))
+    coordinator.note_restored_target(2, 50)
+    coordinator.note_restored_target(3, 165)
+
+    coordinator._api_started = True
+    mock_pitboss.is_connected.return_value = True
+    mock_pitboss.get_state.return_value = StateDict(moduleIsOn=True, isFahrenheit=True)
+    await coordinator._async_update_data()
+
+    mock_pitboss.set_probe_target.assert_awaited_once_with(3, 165)
+
+
 async def test_held_probe_targets_follow_a_unit_flip(
     coordinator: PitBossDataUpdateCoordinator, mock_pitboss: Mock
 ) -> None:
