@@ -3,7 +3,7 @@ aiousbwatcher==1.1.2
 colorlog==6.12.0
 homeassistant==2026.8.0
 mypy==2.3.0
-pip>=26.2
+pip>=26.2.1
 pyserial-asyncio==0.6
 pyserial==3.5
 pytboss==2026.8.6
