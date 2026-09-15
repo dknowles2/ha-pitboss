@@ -1,12 +1,12 @@
 aioesphomeapi==46.4.1
 aiousbwatcher==1.1.2
 colorlog==6.12.0
-homeassistant==2026.8.3
+homeassistant==2026.9.2
 mypy==2.3.1
 pip>=26.2.1
 pyserial-asyncio==0.6
 pyserial==3.5
 pytboss==2026.8.6
-pytest_homeassistant_custom_component==0.13.357
+pytest_homeassistant_custom_component==0.13.365
 ruff==0.16.7
 serialx==1.10.0
