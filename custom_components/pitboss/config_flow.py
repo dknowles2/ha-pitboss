@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-import voluptuous as vol
+import probatio
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 from homeassistant.config_entries import (
     ConfigEntry,
@@ -137,7 +137,7 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
         if not user_input:
             return self.async_show_form(
                 step_id="user",
-                data_schema=vol.Schema({vol.Required(CONF_DEVICE_ID): str}),
+                data_schema=probatio.Schema({probatio.Required(CONF_DEVICE_ID): str}),
             )
 
         # Typed by hand, so normalized: real device IDs are the uppercase
@@ -180,10 +180,10 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
     async def _show_more_info_form(
         self,
         step_id: str,
-        model: str | vol.Undefined = vol.UNDEFINED,
-        password: str | vol.Undefined = vol.UNDEFINED,
-        protocol: str | vol.Undefined = DEFAULT_PROTOCOL,
-        host: str | vol.Undefined = vol.UNDEFINED,
+        model: str | probatio.Undefined = probatio.UNDEFINED,
+        password: str | probatio.Undefined = probatio.UNDEFINED,
+        protocol: str | probatio.Undefined = DEFAULT_PROTOCOL,
+        host: str | probatio.Undefined = probatio.UNDEFINED,
         errors: dict[str, str] | None = None,
     ) -> ConfigFlowResult:
         """Show the more_info form."""
@@ -212,16 +212,16 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
             )
         return self.async_show_form(
             step_id=step_id,
-            data_schema=vol.Schema(
+            data_schema=probatio.Schema(
                 {
-                    vol.Required(CONF_MODEL, default=model): vol.In(models),
-                    vol.Optional(CONF_PASSWORD, default=password): str,
-                    vol.Required(CONF_PROTOCOL, default=protocol): SelectSelector(
+                    probatio.Required(CONF_MODEL, default=model): probatio.In(models),
+                    probatio.Optional(CONF_PASSWORD, default=password): str,
+                    probatio.Required(CONF_PROTOCOL, default=protocol): SelectSelector(
                         SelectSelectorConfig(
                             options=list(ALL_PROTOCOLS), translation_key="protocol"
                         )
                     ),
-                    vol.Optional(CONF_HOST, default=host): str,
+                    probatio.Optional(CONF_HOST, default=host): str,
                 }
             ),
             errors=errors,
@@ -251,7 +251,9 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
             )
         return self.async_show_form(
             step_id="reauth_confirm",
-            data_schema=vol.Schema({vol.Optional(CONF_PASSWORD, default=""): str}),
+            data_schema=probatio.Schema(
+                {probatio.Optional(CONF_PASSWORD, default=""): str}
+            ),
             description_placeholders={
                 "name": reauth_entry.data.get(CONF_DEVICE_ID, "")
             },
@@ -326,9 +328,9 @@ class PitBossOptionsFlow(OptionsFlow):
             return self.async_create_entry(title="", data=user_input)
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema(
+            data_schema=probatio.Schema(
                 {
-                    vol.Required(
+                    probatio.Required(
                         CONF_ENABLE_REMOTE_START,
                         default=self.config_entry.options.get(
                             CONF_ENABLE_REMOTE_START, False

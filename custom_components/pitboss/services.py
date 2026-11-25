@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import voluptuous as vol
+import probatio
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_DEVICE_ID, CONF_PASSWORD
 from homeassistant.core import HomeAssistant, ServiceCall, callback
@@ -28,13 +28,13 @@ BLOCKING_ERRORS = {
     "hotErr": "the grill reports an igniter error",
 }
 
-START_GRILL_SCHEMA = vol.Schema({vol.Required(ATTR_DEVICE_ID): cv.string})
+START_GRILL_SCHEMA = probatio.Schema({probatio.Required(ATTR_DEVICE_ID): cv.string})
 
-SET_GRILL_PASSWORD_SCHEMA = vol.Schema(
+SET_GRILL_PASSWORD_SCHEMA = probatio.Schema(
     {
-        vol.Required(ATTR_DEVICE_ID): cv.string,
+        probatio.Required(ATTR_DEVICE_ID): cv.string,
         # Omit (or pass an empty string) to remove the password.
-        vol.Optional(CONF_PASSWORD, default=""): cv.string,
+        probatio.Optional(CONF_PASSWORD, default=""): cv.string,
     }
 )
 
