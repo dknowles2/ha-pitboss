@@ -9,10 +9,14 @@
 # agree on it.
 #
 # `target-version` is the OLDEST Python this integration has to run on, which
-# is not the one it is developed and tested on. hacs.json admits Home
-# Assistant 2025.1.0, and HA required Python 3.12 through the 2025 series and
-# 3.13 until 2026.7 -- so a user on 2026.6 is running 3.12 or 3.13 while CI
-# (which reads .python-version) runs 3.14.
+# is not necessarily the one it is developed and tested on. hacs.json admits
+# Home Assistant 2026.9.0, which itself requires Python 3.14.2, so the floor
+# and CI (which reads .python-version) now agree.
+#
+# It is left at py312 anyway. Raising it buys nothing -- no module here needs
+# syntax newer than 3.12 -- while it is the single change that reopens the
+# hazard below, and it would have to be lowered again the moment hacs.json
+# admits an older Home Assistant.
 #
 # Set to 3.14 this was actively dangerous rather than merely imprecise:
 # `ruff format` rewrote `except (A, B):` into PEP 758's `except A, B:`, which
