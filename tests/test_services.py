@@ -15,7 +15,10 @@ pytestmark = pytest.mark.parametrize("model", ["PBV4PS2"])
 
 
 def _device_id(hass: HomeAssistant) -> str:
-    device = dr.async_get(hass).async_get_device({(DOMAIN, "mygrill")})
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    device = dr.async_get(hass).async_get_device_by_identifier(
+        (DOMAIN, "mygrill"), entry.entry_id
+    )
     assert device is not None
     return device.id
 

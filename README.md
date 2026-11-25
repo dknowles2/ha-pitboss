@@ -79,6 +79,11 @@ dependency is updated.
 
 ## Installation
 
+**Requires Home Assistant 2026.9.0 or newer.** HACS enforces this for you. A
+manual install does not, and on an older release the integration fails to load
+with `ModuleNotFoundError: probatio` -- the validation library Home Assistant
+builds its forms with, which it only ships from 2026.9.0 onwards.
+
 ### HACS
 
 If you have HACS, go to the three-dot menu and click `Custom

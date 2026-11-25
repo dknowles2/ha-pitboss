@@ -195,13 +195,15 @@ async def test_firmware_version_sensor(
 ) -> None:
     """Read once at setup, and reported on the device too."""
     mock_pitboss.get_firmware_version.return_value = {"firmwareVersion": "0.5.7"}
-    await mock_add_config_entry()
+    entry = await mock_add_config_entry()
 
     state = hass.states.get("sensor.mygrill_firmware_version")
     assert state is not None
     assert state.state == "0.5.7"
 
-    device = dr.async_get(hass).async_get_device({(DOMAIN, "mygrill")})
+    device = dr.async_get(hass).async_get_device_by_identifier(
+        (DOMAIN, "mygrill"), entry.entry_id
+    )
     assert device is not None
     assert device.sw_version == "0.5.7"
 
@@ -316,7 +318,9 @@ async def test_a_late_firmware_read_reaches_the_device_page(
     entry = await mock_add_config_entry()
 
     registry = dr.async_get(hass)
-    device = registry.async_get_device(identifiers={(DOMAIN, "mygrill")})
+    device = registry.async_get_device_by_identifier(
+        (DOMAIN, "mygrill"), entry.entry_id
+    )
     assert device is not None
     assert device.sw_version is None
 
@@ -330,7 +334,9 @@ async def test_a_late_firmware_read_reaches_the_device_page(
     )
     await hass.async_block_till_done()
 
-    device = registry.async_get_device(identifiers={(DOMAIN, "mygrill")})
+    device = registry.async_get_device_by_identifier(
+        (DOMAIN, "mygrill"), entry.entry_id
+    )
     assert device is not None
     assert device.sw_version == "0.5.7"
 
