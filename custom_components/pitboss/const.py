@@ -25,6 +25,14 @@ STANDBY_SCAN_INTERVAL = timedelta(seconds=60)
 # turns a lost ten-second poll into a sixty-second gap in the one situation
 # where freshness matters most. Two in a row is a pattern.
 FAILURES_BEFORE_BACKOFF = 2
+# Seconds a grill that was working may go on rejecting the password before
+# the integration stops polling and asks for a new one. A 401 does not always
+# mean the password changed: pytboss folds the grill's uptime into the key it
+# sends, and caches that uptime for 60 seconds, so a grill that restarts gets
+# keys built from a stale uptime until the cache expires -- every one of them
+# rejected, with the right password. This has to outlast that cache with room
+# for a backed-off poll, or a reboot is indistinguishable from a new password.
+AUTH_FAILURE_GRACE = 180.0
 # Diagnostics change slowly; no need to read them at the poll rate.
 SYS_INFO_INTERVAL = 60.0
 PROTOCOL_WSS = "wss"

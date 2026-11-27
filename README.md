@@ -116,7 +116,11 @@ Already set up? You can change the model, password, or connection protocol at an
 via the integration's "Reconfigure" option, without needing to remove and re-add it.
 
 If the grill starts rejecting your password, the integration starts a reauthentication
-flow asking you to enter it again, rather than retrying indefinitely.
+flow asking you to enter it again, rather than retrying indefinitely. A grill that was
+working gets a few minutes of retries first, because a grill that has just restarted
+can briefly reject the right password. The password you enter is checked against the
+grill when it can be reached (over `wss` or `local`); if the grill is off, or on
+Bluetooth, it is saved and checked when the integration next connects.
 
 ## Contributions are welcome!
 

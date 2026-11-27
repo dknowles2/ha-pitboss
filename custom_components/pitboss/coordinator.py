@@ -24,6 +24,7 @@ from pytboss.grills import StateDict
 
 from .const import (
     ACTIVE_SCAN_INTERVAL,
+    AUTH_FAILURE_GRACE,
     DEFAULT_PROBE_MIN_TEMP,
     DOMAIN,
     FAILURES_BEFORE_BACKOFF,
@@ -104,6 +105,9 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
         self._cancel_setpoint_settle: CALLBACK_TYPE | None = None
         # Consecutive failed cycles, for the backoff decision below.
         self._failed_polls = 0
+        # When the grill first rejected the password since the last good
+        # poll. See `_password_rejected`.
+        self._rejected_since: float | None = None
 
     def accepted_setpoints(self, unit: str) -> list[float]:
         """Grill setpoints the control board honours, expressed in `unit`.
@@ -575,7 +579,38 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
                 self._apply_poll_interval(StateDict())
             raise
         self._failed_polls = 0
+        self._rejected_since = None
         return state
+
+    def _password_rejected(self) -> Exception:
+        """Decide what a 401 from the grill means, and return what to raise.
+
+        Reauth stops polling outright -- Home Assistant schedules no further
+        refresh after `ConfigEntryAuthFailed` -- so the grill stays offline
+        until someone re-enters the password. That is the right answer to a
+        password that changed and the wrong one to a 401 that would have
+        cleared on its own. They are not rare: the key the grill checks is
+        built from its uptime, so a grill that restarts rejects the right
+        password until pytboss next re-reads that uptime. Answering the first
+        401 with reauth turns every such blip into a repair, and #463 is a
+        user asked for the same, correct password roughly every day.
+
+        So a grill that was working gets `AUTH_FAILURE_GRACE` of failed cycles
+        first. One that has never answered a poll on this coordinator -- the
+        setup that follows an HA start, a reload or a reauth -- gets none: its
+        uptime was read moments ago, so the stale-uptime 401 cannot be what
+        this is, and retrying setup would only loop on a password that really
+        is wrong.
+        """
+        message = "The grill rejected the stored password"
+        if self.data is None:
+            return ConfigEntryAuthFailed(message)
+        now = monotonic()
+        if self._rejected_since is None:
+            self._rejected_since = now
+        if now - self._rejected_since >= AUTH_FAILURE_GRACE:
+            return ConfigEntryAuthFailed(message)
+        return UpdateFailed(f"{message}; retrying before asking for a new one")
 
     async def _async_poll(self) -> StateDict:
         if not self._api_started:
@@ -628,11 +663,9 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
             raise UpdateFailed("Grill did not answer") from ex
         except Unauthorized as ex:
             # The grill rejected the password rather than failing the call.
-            # Retrying cannot fix that, and on a transport where `PB.GetState`
-            # is itself password-gated it takes the whole integration down --
-            # so ask for the password instead of retrying forever.
-            raise ConfigEntryAuthFailed(
-                "The grill rejected the stored password"
-            ) from ex
+            # On a grill where `PB.GetState` is password-gated, a password
+            # that really is wrong takes the whole integration down, so this
+            # ends in asking for it -- but not on the first 401.
+            raise self._password_rejected() from ex
         except RPCError as ex:
             raise UpdateFailed(str(ex)) from ex
