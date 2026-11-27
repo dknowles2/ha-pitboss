@@ -418,10 +418,18 @@ class PitBossDataUpdateCoordinator(DataUpdateCoordinator[StateDict]):
                 self.probe_targets[probe_number] = temp
 
     async def _async_setup(self) -> None:
-        """Set up the coordinator."""
+        """Set up the coordinator.
+
+        The firmware version is deliberately not read here. The first refresh
+        runs `_async_poll` straight after this, and that reads it once the
+        ping has shown the grill is answering. Reading it here put a
+        30-second wait ahead of that ping: on the cloud relay the socket opens
+        whether or not the grill is on, so with the grill off every setup
+        attempt sat out the firmware read's full default timeout before the
+        ping could fail it, holding up Home Assistant's startup for ~40 s.
+        """
         await self.api.subscribe_state(self._on_state_update)
         await self._start_api()
-        await self._async_refresh_firmware_version()
 
     async def _async_refresh_firmware_version(self) -> None:
         """Fetch the firmware version until one read succeeds. Never fatal.

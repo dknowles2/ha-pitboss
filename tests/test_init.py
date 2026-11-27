@@ -73,6 +73,38 @@ async def test_setup_entry_not_ready_disconnects_and_stops(
     mock_pitboss.stop.assert_awaited_once()
 
 
+async def test_setup_with_the_grill_off_does_not_wait_on_the_firmware(
+    hass: HomeAssistant, mock_wss_conn: Mock, mock_pitboss: Mock
+) -> None:
+    """The ping decides availability, so nothing slower may run ahead of it.
+
+    On the cloud relay the socket opens with the grill off, and the only
+    sign it is gone is a command timing out. Setup used to read the firmware
+    version first, on a 30-second default timeout, so every attempt with the
+    grill off sat out that read before the 10-second ping failed it -- and
+    held up Home Assistant's startup for the whole ~40 s.
+    """
+    mock_pitboss.ping.side_effect = TimeoutError
+    entry = MockConfigEntry(
+        title="title",
+        domain=DOMAIN,
+        data={
+            CONF_DEVICE_ID: "mygrill",
+            CONF_MODEL: "PBV4PS2",
+            CONF_PASSWORD: "asdfasdf",
+            CONF_PROTOCOL: PROTOCOL_WSS,
+        },
+        unique_id="mygrillid",
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    mock_pitboss.ping.assert_awaited_once()
+    mock_pitboss.get_firmware_version.assert_not_awaited()
+
+
 async def test_setup_passes_the_advertised_control_board(
     hass: HomeAssistant, mock_wss_conn: Mock, mock_pitboss_cls: Mock
 ) -> None:
