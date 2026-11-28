@@ -1,7 +1,9 @@
-from unittest.mock import Mock
+from collections.abc import Generator
+from unittest.mock import Mock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from pytboss.exceptions import (
@@ -14,6 +16,7 @@ from pytboss.grills import StateDict
 
 from custom_components.pitboss.const import (
     ACTIVE_SCAN_INTERVAL,
+    AUTH_FAILURE_GRACE,
     STANDBY_SCAN_INTERVAL,
 )
 from custom_components.pitboss.coordinator import PitBossDataUpdateCoordinator
@@ -423,3 +426,92 @@ async def test_a_unit_flip_arriving_by_poll(
     await coordinator.async_refresh()
 
     assert coordinator.probe_target(3) == 74
+
+
+@pytest.fixture
+def clock() -> Generator[list[float]]:
+    """The coordinator's `monotonic`, advanced by assigning to `clock[0]`."""
+    now = [1000.0]
+    with patch(
+        "custom_components.pitboss.coordinator.monotonic", side_effect=lambda: now[0]
+    ):
+        yield now
+
+
+@pytest.fixture
+def working(
+    coordinator: PitBossDataUpdateCoordinator, mock_pitboss: Mock
+) -> PitBossDataUpdateCoordinator:
+    """A coordinator that has already had a good poll."""
+    coordinator._api_started = True
+    mock_pitboss.is_connected.return_value = True
+    coordinator.async_set_updated_data(StateDict(moduleIsOn=True))
+    return coordinator
+
+
+async def test_a_first_401_on_a_working_grill_is_a_failed_cycle(
+    working: PitBossDataUpdateCoordinator, mock_pitboss: Mock, clock: list[float]
+) -> None:
+    """A grill that restarts rejects the right password for up to a minute.
+
+    pytboss builds the key from the grill's uptime and caches that uptime,
+    so a restart makes the cached value wrong until it is re-read. Reauth
+    stops polling outright, so answering the first 401 with it left a
+    working grill offline until someone re-entered the same password (#463).
+    """
+    mock_pitboss.get_state.side_effect = Unauthorized("Unauthorized", 401)
+
+    with pytest.raises(UpdateFailed):
+        await working._async_update_data()
+    clock[0] += AUTH_FAILURE_GRACE - 1
+    with pytest.raises(UpdateFailed):
+        await working._async_update_data()
+
+
+async def test_a_401_that_outlasts_the_grace_asks_for_the_password(
+    working: PitBossDataUpdateCoordinator, mock_pitboss: Mock, clock: list[float]
+) -> None:
+    mock_pitboss.get_state.side_effect = Unauthorized("Unauthorized", 401)
+
+    with pytest.raises(UpdateFailed):
+        await working._async_update_data()
+    clock[0] += AUTH_FAILURE_GRACE
+    with pytest.raises(ConfigEntryAuthFailed):
+        await working._async_update_data()
+
+
+async def test_a_good_poll_restarts_the_grace(
+    working: PitBossDataUpdateCoordinator, mock_pitboss: Mock, clock: list[float]
+) -> None:
+    """Separate blips are separate blips, not one long rejection."""
+    rejected = Unauthorized("Unauthorized", 401)
+    mock_pitboss.get_state.side_effect = rejected
+    with pytest.raises(UpdateFailed):
+        await working._async_update_data()
+
+    clock[0] += AUTH_FAILURE_GRACE / 2
+    mock_pitboss.get_state.side_effect = None
+    mock_pitboss.get_state.return_value = StateDict(moduleIsOn=True)
+    await working._async_update_data()
+
+    clock[0] += AUTH_FAILURE_GRACE / 2
+    mock_pitboss.get_state.side_effect = rejected
+    with pytest.raises(UpdateFailed):
+        await working._async_update_data()
+
+
+async def test_a_401_before_any_good_poll_asks_at_once(
+    coordinator: PitBossDataUpdateCoordinator, mock_pitboss: Mock
+) -> None:
+    """No grace for a grill that has never answered this coordinator.
+
+    Its uptime was read moments ago, so a stale one cannot be the cause --
+    and setup has no grace to give anyway: a failed first refresh retries
+    setup with a new coordinator, which would start the clock over forever.
+    """
+    coordinator._api_started = True
+    mock_pitboss.is_connected.return_value = True
+    mock_pitboss.get_state.side_effect = Unauthorized("Unauthorized", 401)
+
+    with pytest.raises(ConfigEntryAuthFailed):
+        await coordinator._async_update_data()

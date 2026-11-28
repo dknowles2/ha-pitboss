@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from asyncio import timeout
 from collections.abc import Mapping
 from typing import Any
 
@@ -20,9 +21,12 @@ from homeassistant.const import (
     CONF_PASSWORD,
     CONF_PROTOCOL,
 )
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
-from pytboss import grills, http
+from pytboss import api, grills, http, wss
 from pytboss.exceptions import NotConnectedError, RPCError, Unauthorized
+from pytboss.transport import Transport
 
 from .const import (
     ALL_PROTOCOLS,
@@ -31,6 +35,7 @@ from .const import (
     DOMAIN,
     LOGGER,
     PROTOCOL_LOCAL,
+    PROTOCOL_WSS,
 )
 
 VALIDATION_TIMEOUT = 10.0
@@ -83,6 +88,58 @@ async def _validate_local(protocol: str, host: str) -> dict[str, str] | None:
     finally:
         await conn.disconnect()
     return None
+
+
+async def _password_rejected(
+    hass: HomeAssistant, data: Mapping[str, Any], password: str
+) -> bool:
+    """Whether the grill turns `password` away.
+
+    Asked with `PB.GetState`, the same password-gated call the coordinator
+    polls with, so a password that passes here is one the reload after reauth
+    will get past.
+
+    True only for a definite rejection. A grill that cannot be asked -- off,
+    out of reach, or on Bluetooth, where the loaded entry may be holding the
+    only connection the grill allows -- is not evidence against the password,
+    and refusing it would leave the repair unfixable until the grill is on.
+    That password is saved unchecked, as every password was before, and the
+    reload checks it.
+    """
+    session = async_get_clientsession(hass)
+    protocol = data.get(CONF_PROTOCOL, DEFAULT_PROTOCOL)
+    conn: Transport
+    if protocol == PROTOCOL_WSS:
+        conn = wss.WebSocketConnection(
+            data[CONF_DEVICE_ID], session=session, loop=hass.loop
+        )
+    elif protocol == PROTOCOL_LOCAL:
+        conn = http.HttpConnection(
+            data[CONF_HOST], session=session, timeout=VALIDATION_TIMEOUT
+        )
+    else:
+        return False
+    # Its own transport and `PitBoss`, not the loaded coordinator's: the
+    # password is fixed at construction, and a second `PitBoss` on the
+    # coordinator's transport would take over its state callbacks.
+    grill = api.PitBoss(
+        conn,
+        data[CONF_MODEL],
+        password=password,
+        control_board=data[CONF_DEVICE_ID].split("-")[0],
+    )
+    try:
+        async with timeout(VALIDATION_TIMEOUT):
+            await grill.start()
+            await grill.get_state()
+    except Unauthorized:
+        return True
+    except Exception as ex:  # noqa: BLE001
+        LOGGER.debug("Could not check the password against the grill: %s", ex)
+        return False
+    finally:
+        await grill.stop()
+    return False
 
 
 def _models_on_board(control_board: str) -> list[str]:
@@ -244,16 +301,24 @@ class PitBossFlowHandler(ConfigFlow, domain=DOMAIN):
         as no authentication at all.
         """
         reauth_entry = self._get_reauth_entry()
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self.async_update_reload_and_abort(
-                reauth_entry,
-                data_updates={CONF_PASSWORD: user_input.get(CONF_PASSWORD, "")},
-            )
+            password = user_input.get(CONF_PASSWORD, "")
+            # Checked before saving: without it, any password at all was
+            # answered with "Re-authentication was successful", and a wrong
+            # one only surfaced as the same repair coming straight back.
+            if await _password_rejected(self.hass, reauth_entry.data, password):
+                errors[CONF_PASSWORD] = "wrong_password"
+            else:
+                return self.async_update_reload_and_abort(
+                    reauth_entry, data_updates={CONF_PASSWORD: password}
+                )
         return self.async_show_form(
             step_id="reauth_confirm",
             data_schema=probatio.Schema(
                 {probatio.Optional(CONF_PASSWORD, default=""): str}
             ),
+            errors=errors,
             description_placeholders={
                 "name": reauth_entry.data.get(CONF_DEVICE_ID, "")
             },

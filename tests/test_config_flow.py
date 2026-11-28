@@ -358,6 +358,7 @@ async def test_reauth_updates_the_password_and_reloads(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
     mock_pitboss: Mock,
+    mock_wss_conn: Mock,
 ) -> None:
     mock_config_entry.add_to_hass(hass)
 
@@ -380,6 +381,7 @@ async def test_reauth_accepts_an_empty_password(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
     mock_pitboss: Mock,
+    mock_wss_conn: Mock,
 ) -> None:
     """Clearing the grill's password is supported; the firmware treats an
     empty one as no authentication at all."""
@@ -391,6 +393,129 @@ async def test_reauth_accepts_an_empty_password(
 
     assert result["type"] is FlowResultType.ABORT
     assert mock_config_entry.data[CONF_PASSWORD] == ""
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_reauth_checks_the_new_password_against_the_grill(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_pitboss_cls: Mock,
+    mock_wss_conn: Mock,
+) -> None:
+    """With the password typed in, and the call the coordinator polls with."""
+    mock_config_entry.add_to_hass(hass)
+
+    result = await mock_config_entry.start_reauth_flow(hass)
+    await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_PASSWORD: "newpassword"}
+    )
+    await hass.async_block_till_done()
+
+    first = mock_pitboss_cls.call_args_list[0]
+    assert first.kwargs["password"] == "newpassword"
+    assert first.kwargs["control_board"] == "mygrill"
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_reauth_refuses_a_password_the_grill_rejects(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_pitboss: Mock,
+    mock_wss_conn: Mock,
+) -> None:
+    """A wrong password used to be answered with "successful".
+
+    It was saved, the reload failed on it, and the same repair came straight
+    back -- with nothing to say the password was the problem (#463).
+    """
+    mock_config_entry.add_to_hass(hass)
+    mock_pitboss.get_state.side_effect = Unauthorized("Unauthorized", 401)
+
+    result = await mock_config_entry.start_reauth_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_PASSWORD: "wrongpassword"}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {CONF_PASSWORD: "wrong_password"}
+    assert mock_config_entry.data[CONF_PASSWORD] == "asdfasdf"
+    # The throwaway connection is not left open behind the form.
+    mock_pitboss.stop.assert_awaited_once()
+
+    mock_pitboss.get_state.side_effect = None
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_PASSWORD: "rightpassword"}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert mock_config_entry.data[CONF_PASSWORD] == "rightpassword"
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+@pytest.mark.parametrize(
+    "raised",
+    [
+        TimeoutError(),
+        NotConnectedError("nothing there"),
+        RPCError("something else", -1),
+    ],
+)
+async def test_reauth_saves_a_password_it_cannot_check(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_pitboss: Mock,
+    mock_wss_conn: Mock,
+    raised: Exception,
+) -> None:
+    """A grill that is off is no evidence against the password.
+
+    Refusing it would leave the repair unfixable until the grill is on; the
+    reload checks it when the grill next connects.
+    """
+    mock_config_entry.add_to_hass(hass)
+    mock_pitboss.get_state.side_effect = raised
+
+    result = await mock_config_entry.start_reauth_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_PASSWORD: "newpassword"}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert mock_config_entry.data[CONF_PASSWORD] == "newpassword"
+
+
+@pytest.mark.parametrize("model", ["PBV4PS2"])
+async def test_reauth_does_not_open_a_second_bluetooth_connection(
+    hass: HomeAssistant, mock_pitboss_cls: Mock
+) -> None:
+    """The loaded entry may hold the only connection the grill allows."""
+    entry = MockConfigEntry(
+        title="title",
+        domain=DOMAIN,
+        data={
+            CONF_DEVICE_ID: "PBL-ABC123",
+            CONF_MODEL: "PBV4PS2",
+            CONF_PASSWORD: "asdfasdf",
+            CONF_PROTOCOL: "ble",
+        },
+        unique_id="pbl-abc123",
+    )
+    entry.add_to_hass(hass)
+
+    with patch("custom_components.pitboss.async_setup_entry", return_value=True):
+        result = await entry.start_reauth_flow(hass)
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_PASSWORD: "newpassword"}
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert entry.data[CONF_PASSWORD] == "newpassword"
+    mock_pitboss_cls.assert_not_called()
 
 
 async def test_model_list_is_built_off_the_event_loop(

@@ -50,7 +50,7 @@
       },
       "reauth_confirm": {
         "title": "Re-enter the grill password",
-        "description": "{name} rejected the stored password. Enter the password set on the grill, or leave it empty if the grill has none.",
+        "description": "{name} rejected the stored password. Enter the password set on the grill, or leave it empty if the grill has none. The password is checked against the grill when it can be reached; if the grill is off, it is saved and checked when the grill next connects.",
         "data": {
           "password": "Password"
         }
@@ -60,7 +60,8 @@
       "host_required": "A host is required for a local connection.",
       "cannot_connect": "No grill answered at that address. Not every grill has the local interface enabled, and it cannot be turned on from here.",
       "invalid_auth": "A grill answered at that address but refused the connection.",
-      "not_a_grill": "Something answered at that address, but it is not a grill."
+      "not_a_grill": "Something answered at that address, but it is not a grill.",
+      "wrong_password": "The grill rejected that password."
     }
   },
   "selector": {
